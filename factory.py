@@ -55,3 +55,4 @@ class Factory(STL):
             if self.f_powerack( ):
                 print(f'#{self.id}: power fail acknowledged')
                 self.powerfail = False
+                self.powerack = False

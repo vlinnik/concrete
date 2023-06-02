@@ -1,7 +1,7 @@
 from pyplc.stl import *
 from pyplc.utils.trig import FTRIG
     
-@stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'])
+@stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'],hidden=['raw','ok','k','a'])
 class Weight(STL):
     g_Load = 0.0
     def __init__(self,raw=0,mmax=None):
@@ -22,6 +22,9 @@ class Weight(STL):
         self.f_shift = FTRIG(clk=lambda: self.shift)
         self.f_set = FTRIG(clk=lambda: self.set)
         self.h_index = 0
+    
+    def mode(self,fast: bool):
+        self.fast = fast
         
     def tune(self,load):
         self.points.append( (self.mA,load) )

@@ -22,15 +22,15 @@ class Counter(STL):
         self.m = m
         self.e = 0.0
         self.q = Flow( )
-        self.filter = TOF(clk = lambda: self.flow_in,pt=3000 )
+        # self.filter = TOF(clk = lambda: self.flow_in,pt=1000 )
         self.f_out = FTRIG(clk = lambda: self.flow_out )
-        self.trig = TRIG(clk = lambda: self.filter.q)
+        self.trig = TRIG(clk = lambda: self.flow_in)
 
     def __call__(self, m = None) :
         with self:
             self.m = self.overwrite('m',m)
             
-            self.filter( )
+            # self.filter( )
             self.f_out( )
             self.q(self.flow_out,self.e )
             if self.f_out.q:
