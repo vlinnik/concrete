@@ -1,9 +1,9 @@
 from pyplc.sfc import *
-from pyplc.utils.trig import RTRIG
+from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
 import time
 
-@sfc(inputs=['count','go','m','closed','lock'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation'],hidden=['m','closed','fast'])
+@sfc(inputs=['count','go','m','closed','lock'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation','leave','ack'],hidden=['m','closed','fast'])
 class Dosator(SFC):
     """Логика дозатора. Выполняет процедуру набора/выгрузки count раз. Выгрузка имеет задержку unloadT
     """
@@ -25,9 +25,12 @@ class Dosator(SFC):
         self.lock = lock
         self.compensation = False
         self.fast = False
+        self.leave = False
+        self.ack = False
         self.s_go = RS(set = lambda: self.go,id = 's_go')
         self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
         self.s_loaded = RS(set=lambda: self.loaded, id = 's_loaded' )
+        self.t_ack = FTRIG(clk = lambda: self.ack )
         self.subtasks = [ self.always ]
         for c in self.containers:
             c.install_counter( flow_out = lambda: self.out )
@@ -81,7 +84,8 @@ class Dosator(SFC):
         self.log(f'wait for required containers get ready..')
         for x in self.until( lambda: all( [c.ready for c in self.required] ),step='wait.containers' ):
             yield x
-
+            
+        self.fail = False
         self.log(f'waiting for get loaded #{batch+1}..')
         fract = self.m
         for c in self.required:
@@ -97,6 +101,11 @@ class Dosator(SFC):
                 c.collect( )
                 for x in self.until( lambda: c.ready or self.is_loaded(), step='collecting'):
                     yield x
+                if c.err>=c.max_sp*0.04:
+                    self.fail = True
+                    while not self.t_ack( ):
+                        yield True
+                    self.fail = False
 
         self.loaded = True
         yield True
@@ -107,6 +116,14 @@ class Dosator(SFC):
             yield x
         self.unload = False
         self.unloaded = False
+        if self.leave:
+            rest = self.m  #посмотрим сколько нужно оставить в дозаторе
+            for c in self.required:
+                rest -= c.sp
+            if rest<=self.ignore:
+                rest = self.ignore
+        else:
+            rest = self.ignore
 
         self.log(f'unloading after {self.unloadT} sec')
         for x in self.pause( self.unloadT*1000 , step='pause.unload' ):
@@ -114,7 +131,7 @@ class Dosator(SFC):
 
         if len(self.required)>0:
             self.log(f'unloading..')
-            for x in self.till( lambda: self.m>self.ignore, step='unloading' ):
+            for x in self.till( lambda: self.m>self.ignore and self.m>rest, step='unloading' ):
                 self.__auto( out = True )
                 yield True
 

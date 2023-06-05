@@ -11,6 +11,7 @@ class Transport(STL):
             auto (bool, optional): запрос на включение извне. Defaults to False.
             ison (bool, optional): состояние ВКЛЮЧЕНО. Defaults to False. Hidden
             pt (int, optional): задержка отключения в сек. Defaults to 5.
+            active (bool): Включена логика работы. Иначе out повторяет auto
         
         Outputs:
             out (bool) : если включение удалось повторяет auto
@@ -22,7 +23,7 @@ class Transport(STL):
         self.manual = False
         self.power = False
         self.out = False
-        self.active = False
+        self.active = True
         self.__power = TOF(clk=lambda: self.__auto, pt = pt*1000)
         self.__startup = TON(clk=lambda: self.ison, pt = 2000 )
 
@@ -39,5 +40,8 @@ class Transport(STL):
     def __call__(self, pt: int = None ):
         with self:
             pt = self.overwrite('pt',pt)
-            self.power = self.__power( pt = pt*1000) or self.manual
-            self.out = self.__startup(  ) and self.__auto
+            if self.active:
+                self.power = self.__power( pt = pt*1000) or self.manual
+                self.out = self.__startup(  ) and self.__auto
+            else:
+                self.out = self.__auto

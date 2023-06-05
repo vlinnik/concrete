@@ -8,13 +8,13 @@ from .counting import Counter,Flow, RotaryFlowMeter
 class Container( SFC ):
     """Расходный бункер
     """
-    def __init__(self, m=0.0, sp = 0.0, go = False,lock=False, closed=True) -> None:
+    def __init__(self, m=0.0, sp = 0.0, go = False,lock=False, closed=True,max_sp: float = 1000) -> None:
         self.go = go
         self.m = m
         self.sp = sp
         self.min_ff = 300
         self.max_ff = 300
-        self.max_sp = 1000
+        self.max_sp = max_sp
         self.min_w = 100
         self.max_w = 500
         self.closed = closed
@@ -72,7 +72,7 @@ class Container( SFC ):
         self.f_go( clk = True )
 
     def __ff(self,sp):
-        if sp<=self.min_ff:
+        if sp<=self.min_ff or self.max_sp==0:
             return self.min_ff
         elif sp>=self.max_sp:
             return self.max_ff
@@ -100,7 +100,7 @@ class Container( SFC ):
         from_m = self.m if from_m is None else from_m
         from_m-= (self.take or 0) 
         self.log(f'in precise mode from {from_m}')
-        while self.m<from_m+self.sp*0.99 and not self.sfc_reset :
+        while self.m<from_m+self.sp*0.99:
             dm = self.sp+from_m-self.m
             if self.min_ff>0 and dm<=self.min_ff:
                 w = dm/self.min_ff*(self.max_w-self.min_w)+self.min_w
