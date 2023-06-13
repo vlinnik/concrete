@@ -4,7 +4,7 @@ from pyplc.utils.latch import RS
 from .factory import Factory
 from .counting import Flow,Expense
 
-@sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid'] )
+@sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid','breakpoint'] )
 class Mixer(SFC):
     """Смеситель
 
@@ -29,6 +29,7 @@ class Mixer(SFC):
         self.nack = False
         self.req = True
         self.forbid = False
+        self.breakpoint = False
         self.clock = 0
         self.state = 'СВОБОДНА'
         self.f_go = RTRIG( clk = lambda: self.go , id = 'f_go')

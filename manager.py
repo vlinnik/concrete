@@ -143,6 +143,10 @@ class Manager(SFC):
             for i in self.until( lambda: self.collected.q):
                 yield i
             self.log('everything collected')
+            
+            for i in self.till(lambda: self.mixer.breakpoint, step = 'breakpoint'):
+                yield True
+                
             self.mixer.loading = True
             for d in self.dosators:
                 d.go = False

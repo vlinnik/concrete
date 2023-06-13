@@ -23,6 +23,7 @@ class Container( SFC ):
         self.ready = True
         self.busy = False
         self.manual = True
+        self.autotune = False   # автоопределение параметров дозирования
         self.f_go = FTRIG(clk = lambda: self.go )
         self.e = 0.0 #maxium posible error
         self.err = 0.0  #accumulated error 
@@ -85,7 +86,24 @@ class Container( SFC ):
         from_m = self.m if from_m is None else from_m
         from_m-= (self.take or 0) 
         self.log(f'in rought mode from {from_m}')
+        from_T = self.time()
         for x in self.till( lambda: self.m<=from_m+self.sp-self.__ff(self.sp),step='rought'):
+            if self.autotune and self.closed:
+                from_T = self.time( )
+                
+            if self.autotune and self.m>=from_m+self.max_sp*0.05:
+                self.__auto(False)
+                till_T =self.time()
+                m0 = self.m
+                for y in self.until( lambda: self.closed, min=3000,step = 'autotuning' ):
+                    yield y
+                self.log(f'tuning stop at {m0}/{self.m}, {till_T - from_T} msec')
+                self.max_ff = (self.m - from_m - self.max_sp*0.05)
+                self.min_ff = self.max_ff * 1.1
+                self.max_w = max((till_T - from_T)/3,100)
+                self.min_w = max(self.max_w/10,100)
+                self.autotune = False
+                self.log(f'Tuning result min_ff/max_ff/min_w/max_w: {self.min_ff}/{self.max_ff}/{self.min_w}/{self.max_w}')
             self.__auto(True)
             yield True
             
