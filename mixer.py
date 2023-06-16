@@ -49,6 +49,7 @@ class Mixer(SFC):
     def emergency(self,value: bool = True ):
         self.log(f'emergency = {value}')
         self.sfc_reset = value
+        self.f_loaded.unset()
     
     def __always(self):
         if self.f_ack.q: self.req=False

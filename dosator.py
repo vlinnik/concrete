@@ -62,6 +62,9 @@ class Dosator(SFC):
     def emergency(self,value: bool = True):
         self.log(f'emergency = {value}')
         self.sfc_reset = value
+        self.out = False
+        self.s_loaded.unset( )
+        self.s_unload.unset( )
             
     def __loading(self):
         result = False
@@ -71,7 +74,7 @@ class Dosator(SFC):
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
-            self.out = out
+            self.out = out and not self.lock
    
     def always(self):
         self.fast = False

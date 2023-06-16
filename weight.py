@@ -25,15 +25,14 @@ class Weight(STL):
         
     def tune(self,load):
         self.points.append( (self.mA,load) )
-        while len(self.points)>1:
+        if len(self.points)>1:
+            self.points.sort(key=lambda pt: pt[0])
             mA0,m0 = self.points[0]
-            mA1,m1 = self.points[1]
+            mA1,m1 = self.points[-1]
             if abs(mA1 - mA0)>=0.005:
                 self.k = (m1-m0)/(mA1-mA0)
                 self.a = m1 - (mA1-4)*self.k
-                self.points.clear()
-            else:
-                self.points.pop(0)
+            self.points.clear()
 
     def __call__(self,raw=None,fast=None):
         with self:

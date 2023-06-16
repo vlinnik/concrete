@@ -44,7 +44,7 @@ class Factory(STL):
 
     def __call__(self) :
         with self:
-            self.trial( )
+            # self.trial( )
             if self.f_manual( ):
                 for e in self.on_mode:
                     e( self.manual )
@@ -52,6 +52,6 @@ class Factory(STL):
                 for e in self.on_emergency:
                     e( self.emergency )
                 
-            if self.f_powerack( ):
+            if self.f_powerack( ) and self.powerfail:
                 print(f'#{self.id}: power fail acknowledged')
                 self.powerfail = False

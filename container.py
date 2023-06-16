@@ -3,11 +3,11 @@ from pyplc.utils.trig import FTRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter,Flow, RotaryFlowMeter
 
-@sfc(inputs=['m','sp','go','closed'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],id='container')
+@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],id='container')
 class Container( SFC ):
     """Расходный бункер
     """
-    def __init__(self, m=0.0, sp = 0.0, go = False, count=1, closed=True) -> None:
+    def __init__(self, m=0.0, sp = 0.0, go = False,lock = False, count=1, closed=True) -> None:
         self.go = go
         self.m = m
         self.sp = sp
@@ -29,7 +29,7 @@ class Container( SFC ):
         self.q = None
         self.__counter = None 
         self.take = None
-        self.lock = False
+        self.lock = lock
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=2 )
         self.subtasks = [self.__counting,self.__lock,self.afterOut]
     
@@ -40,6 +40,7 @@ class Container( SFC ):
         
     def emergency(self,value: bool = True ):
         self.log(f'emergency = {value}')
+        self.out = False
         self.sfc_reset = value
     
     def __lock(self):
@@ -55,7 +56,7 @@ class Container( SFC ):
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
-            self.out = out
+            self.out = out and not self.lock
 
     def install_counter(self,flow_out: callable = None):
         self.__counter = Counter(flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
