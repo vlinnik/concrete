@@ -56,7 +56,7 @@ class Dosator(SFC):
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
-            self.out = out
+            self.out = out and not self.lock
    
     def always(self):
         self.fast = self.out

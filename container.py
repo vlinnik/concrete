@@ -58,7 +58,7 @@ class Container( SFC ):
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
-            self.out = out
+            self.out = out and not self.lock
 
     def install_counter(self,flow_out: callable = None):
         self.__counter = Counter(flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
