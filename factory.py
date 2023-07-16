@@ -3,7 +3,7 @@ from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON
 import time
 
-@stl(vars=['manual','emergency','powerfail','powerack','imitation','moto','used','code','activated','over','scanTime'],persistent=['moto','used','activated','over'])
+@stl(vars=['manual','emergency','powerfail','powerack','imitation','moto','used','code','activated','over','scanTime','powered'],persistent=['moto','used','activated','over','powered'])
 class Factory(STL):
     CODES = [492514677,966469493,479980427,240744683,701396280,550554374,993031528,853155165,307705131,476236431,740255561,206650223,664642972,191186618,887119234,859155162]
     LIMIT = 115
@@ -23,6 +23,7 @@ class Factory(STL):
         self.code = 0
         self.activated = False
         self.over = False
+        self.powered = 0
         self.last_call = time.time_ns( )
         self.on_mode = [lambda *args: print(f'#{self.id}: manual toggled ',*args)]
         self.on_emergency = [lambda *args: print(f'#{self.id}: emergency toggled ',*args)]
@@ -62,3 +63,4 @@ class Factory(STL):
                 print(f'#{self.id}: power fail acknowledged')
                 self.powerfail = False
                 self.powerack = False
+                self.powered += 1

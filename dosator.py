@@ -3,7 +3,7 @@ from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
 import time
 
-@sfc(inputs=['count','go','m','closed','lock'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation','leave','ack'],hidden=['m','closed','fast'])
+@sfc(inputs=['count','go','m','closed','lock'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation','leave','ack'],hidden=['m','closed','fast'],persistent=['unloadT','ignore'])
 class Dosator(SFC):
     """Логика дозатора. Выполняет процедуру набора/выгрузки count раз. Выгрузка имеет задержку unloadT
     """
@@ -33,7 +33,7 @@ class Dosator(SFC):
         self.t_ack = FTRIG(clk = lambda: self.ack )
         self.subtasks = [ self.always ]
         for c in self.containers:
-            c.install_counter( flow_out = lambda: self.out )
+            c.install_counter( flow_out = lambda: self.out ,m = lambda: self.m )
             
     def switch_mode(self,manual: bool ):
         self.log(f'toggled manual = {manual}')
@@ -87,7 +87,10 @@ class Dosator(SFC):
             
         self.fail = False
         self.log(f'waiting for get loaded #{batch+1}..')
-        fract = self.m
+        if self.m>self.ignore:
+            fract = self.m
+        else:
+            fract = 0
         for c in self.required:
             if fract>c.sp:
                 fract-=c.sp

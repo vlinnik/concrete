@@ -4,7 +4,7 @@ from pyplc.utils.trig import FTRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter,Flow, RotaryFlowMeter
 
-@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],id='container')
+@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
 class Container( SFC ):
     """Расходный бункер
     """
@@ -48,20 +48,20 @@ class Container( SFC ):
     def __lock(self):
         self.out = self.out and not self.lock
     
-    def __counting(self):
+    def __counting(self):            
         if self.__counter is None:
             return
 
         self.q( clk=self.__counter.q.clk, m = self.__counter.q.m )
-        self.__counter(m=self.m)
+        self.__counter( )
         self.done=self.__counter.e
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
             self.out = out and not self.lock
 
-    def install_counter(self,flow_out: callable = None):
-        self.__counter = Counter(flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
+    def install_counter(self,flow_out: callable = None, m: callable = None):
+        self.__counter = Counter(m = m, flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
         self.q = self.__counter.q
        
     def collect(self,sp=None):
@@ -84,7 +84,8 @@ class Container( SFC ):
         self.fast = True
         self.sp = sp
         from_m = self.m if from_m is None else from_m
-        from_m-= (self.take or 0) 
+        if self.take>0:
+            from_m-= self.take 
         self.log(f'in rought mode from {from_m}')
         from_T = self.time()
         for x in self.till( lambda: self.m<=from_m+self.sp-self.__ff(self.sp),step='rought'):
@@ -116,7 +117,8 @@ class Container( SFC ):
         self.fast = False
         self.sp = sp
         from_m = self.m if from_m is None else from_m
-        from_m-= (self.take or 0) 
+        if self.take>0:
+            from_m -= self.take 
         self.log(f'in precise mode from {from_m}')
         while self.m<from_m+self.sp*0.99:
             dm = self.sp+from_m-self.m
@@ -160,7 +162,7 @@ class Container( SFC ):
         for x in self.until(lambda: self.closed, min=2,max=2 ,step = 'stab'):
             yield x
         if self.sp>0:
-            self.err = (self.m - (from_m + self.sp - (self.take or 0)) ) 
+            self.err = (self.m - (from_m + self.sp - (self.take if self.take>0 else 0)) ) 
             self.log(f'done, m={self.m:.2f}, err={(self.err)/self.sp*100:.1f}%')
         self.take = None
     
@@ -284,7 +286,10 @@ class Accelerator():
             i = 0
             for o in self.outs:
                 self.out = self.out or (self.src.out and not self.disabled(i) and not self.src.lock)
-                o(self.src.out and not self.disabled(i) and not self.src.lock)
+                if not self.disabled(i):
+                    o(self.src.out and not self.src.lock)
+                    break
+                
                 i+=1
         else:
             if self.src.out:

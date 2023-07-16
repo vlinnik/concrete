@@ -18,6 +18,8 @@ class Weight(STL):
         self.set = False
         self.still = True
         self.m = 0.0
+        self.slow_m = 0.0   #для учета среднее по последним 4 измерениям (hist)
+        self.fast_m = 0.0   #для дозирования без округления по step
         self.step = 0
         self.f_shift = FTRIG(clk=lambda: self.shift)
         self.f_set = FTRIG(clk=lambda: self.set)
@@ -42,12 +44,13 @@ class Weight(STL):
         with self:
             raw = self.overwrite('raw',raw)
             fast = self.overwrite('fast',fast)
-            self.hist[self.h_index]=raw
+            self.hist[self.h_index]=raw & 0xFFFC
             self.h_index = (self.h_index+1) % 4
             if self.h_index==0:
-                self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/8/65535*16 
-                if not fast: 
-                    self.m = self.a + self.mA*self.k 
+                self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/4/65535*16 + 4
+                self.slow_m = self.mA * self.k + self.a
+                # if not fast: 
+                #     self.m = self.a + self.mA*self.k 
                 self.mA += 4
                 self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
                 self.__raw = raw
@@ -58,9 +61,11 @@ class Weight(STL):
             if self.f_set():
                 self.tune( Weight.g_Load )
 
-            if fast:
-                self.m = (raw/0x1000)*self.k + self.a    #optimized raw/0x10000*16*self.k + self.a
+            # if fast:
+            self.fast_m = ( (raw & 0xFFFC)/0x1000 )*self.k + self.a
 
             if self.step>0:
-                return self.step*int(self.m/self.step)
+                self.m = self.step*int(self.fast_m/self.step)
+            else:
+                self.m = self.fast_m
         return self.m
