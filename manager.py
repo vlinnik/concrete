@@ -2,7 +2,7 @@ from pyplc.sfc import *
 from pyplc.stl import *
 from .dosator import Dosator
 from .mixer import Mixer
-from .elevator import Elevator
+from .elevator import Elevator,ElevatorGeneric
 
 class Readiness():
     """Контроль за группой событий
@@ -23,7 +23,7 @@ class Readiness():
                 y = x.load
             elif isinstance(x,Dosator):
                 y = x.loaded
-            elif isinstance(x,Elevator):
+            elif isinstance(x,ElevatorGeneric):
                 y = x.loaded
                 
             self.already[n] = self.already[n] or y
@@ -85,7 +85,17 @@ class Multiplexor():
 """
 @sfc()
 class Manager(SFC):
-    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[]):
+    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[], addons = [] ):
+        """Управление процессом приготовления 
+
+        Args:
+            collected (Readiness): определение готовности компонентов для приготовления
+            loaded (Loaded): определение окочания загрузки
+            mixer (Mixer): смеситель, в котором идет приготовление
+            dosators (list[Dosator], optional): Дозаторы, в которые происходит набор компонентов.Defaults to [].
+            addons (list, optional): объекты с аттрибутом go,count,unload. Defaults to [].
+        """
+        self.addons = addons   
         self.dosators = dosators
         self.mixer = mixer
         self.ready = True
@@ -95,19 +105,17 @@ class Manager(SFC):
         
     def emergency(self,value: bool = True ):
         self.log(f'emergency = {value}')
-        self.sfc_reset = value
         
     @sfcaction
     def precollect(self):
         for i in self.till(lambda: self.mixer.forbid):
             yield i
             
-        if not self.sfc_reset:
-            self.log('starting up pre-collecting')
-            for d in self.dosators:
-                d.go = True
-                d.count = 1
-            yield True
+        self.log('starting up pre-collecting')
+        for d in self.dosators:
+            d.go = True
+            d.count = 1
+        yield True
         
     @sfcaction
     def main( self):
@@ -136,7 +144,7 @@ class Manager(SFC):
                 c.err = 0
 
         batch = 0
-        while batch<self.mixer.count and not self.sfc_reset:
+        while batch<self.mixer.count:
             self.log(f'starting batch #{batch+1}')
                
             self.log('waiting for dosators collecting')
@@ -148,13 +156,22 @@ class Manager(SFC):
                 yield True
                 
             self.mixer.loading = True
+
             for d in self.dosators:
                 d.go = False
-                d.unload = True
-                
-            if batch+1<self.mixer.count and not self.sfc_reset:
+
+            if batch+1<self.mixer.count:
                 self.exec(self.precollect( ))
-            
+
+            for a in self.addons:
+                a.unload = True
+                for i in self.until(lambda: a.unloading):
+                    yield i
+                a.unload = False
+                
+            for d in self.dosators:
+                d.unload = True
+                            
             for i in self.until( lambda: self.loaded.q): # пока не загрузим в смеситель
                 yield i
 

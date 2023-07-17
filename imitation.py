@@ -78,10 +78,13 @@ class iELEVATOR(STL):
         self.above = False
         self.moveT = moveT
     def __call__(self, up=None,down=None):
-        if up and self.pos<self.moveT:
-            self.pos+=1
-        if down and self.pos>0:
-            self.pos-=1
-        self.below = self.pos==0
-        self.above = self.pos>=self.moveT
-        self.middle = self.pos==round(self.moveT/2)
+        with self:
+            up = self.overwrite('up',up)
+            down = self.overwrite('down',down)
+            if up and self.pos<self.moveT:
+                self.pos+=1
+            if down and self.pos>0:
+                self.pos-=1
+            self.below = self.pos==0
+            self.above = self.pos>=self.moveT
+            self.middle = self.pos==round(self.moveT/2)

@@ -23,6 +23,7 @@ class Factory(STL):
         self.code = 0
         self.activated = False
         self.over = False
+        self.scanTime = 0
         self.last_call = time.time_ns( )
         self.on_mode = [lambda *args: print(f'#{self.id}: manual toggled ',*args)]
         self.on_emergency = [lambda *args: print(f'#{self.id}: emergency toggled ',*args)]

@@ -6,7 +6,7 @@ from .container import Container,FlowMeter,Accelerator
 from .weight import Weight
 from .manager import Manager,Readiness,Loaded,Lock
 from .factory import Factory
-from .elevator import Elevator
+from .elevator import Elevator,ElevatorGeneric
 from .counting import Counter,Expense,RotaryFlowMeter
 from .vodoley import Vodoley
 from .transport import Transport
