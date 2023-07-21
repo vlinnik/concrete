@@ -105,6 +105,9 @@ class Manager(SFC):
         
     def emergency(self,value: bool = True ):
         self.log(f'emergency = {value}')
+        self.collected( rst = True )
+        self.loaded( rst = True )
+        self.sfc_reset = value
         
     @sfcaction
     def precollect(self):
@@ -165,14 +168,14 @@ class Manager(SFC):
 
             for a in self.addons:
                 a.unload = True
-                for i in self.until(lambda: a.unloading):
+                for i in self.until(lambda: a.unloading,step='addons'):
                     yield i
                 a.unload = False
                 
             for d in self.dosators:
                 d.unload = True
                             
-            for i in self.until( lambda: self.loaded.q): # пока не загрузим в смеситель
+            for i in self.until( lambda: self.loaded.q,step='wait.loaded'): # пока не загрузим в смеситель
                 yield i
 
             batch+=1

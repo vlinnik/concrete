@@ -126,12 +126,15 @@ class Container( SFC ):
                 w = self.min_w
             else:
                 w = self.max_w
+            # for x in self.till(lambda: self.closed,max=1000,step='pulse.begin_open'):
+            #     self.__auto( True )
+            #     yield x
             for x in self.pause( w ):
                 self.__auto( True )
-                yield True
+                yield x
             for x in self.until(lambda: self.closed, min=3000,step='pulse.low'):
                 self.__auto( False )
-                yield True
+                yield x
     
     @sfcaction
     def main(self) :

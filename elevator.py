@@ -53,6 +53,7 @@ class ElevatorGeneric(SFC):
         self.log(f'emergency = {value}')
         self.up = False
         self.down = False
+        self.unload = False
         self.s_loaded.unset()
         self.s_unload.unset()
         self.sfc_reset = value
@@ -71,9 +72,9 @@ class ElevatorGeneric(SFC):
                 if self.above and self.dir>0:
                     self.dir = 0
             if up is not None:
-                self.up = up and not self.above 
+                self.up = up and not self.above and not self.lock
             if down is not None:
-                self.down = down and not self.below 
+                self.down = down and not self.below and not self.lock
         self.__manual = self.manual
 
     def start( self,count = 1 ):
