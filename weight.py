@@ -44,28 +44,34 @@ class Weight(STL):
         with self:
             raw = self.overwrite('raw',raw)
             fast = self.overwrite('fast',fast)
-            self.hist[self.h_index]=raw & 0xFFFC
-            self.h_index = (self.h_index+1) % 4
-            if self.h_index==0:
-                self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/4/65535*16 + 4
-                self.slow_m = self.mA * self.k + self.a
-                # if not fast: 
-                #     self.m = self.a + self.mA*self.k 
-                self.mA += 4
-                self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
-                self.__raw = raw
-            self.ok = True
+            if raw is not None:
+                self.hist[self.h_index]=raw & 0xFFFC
+                self.h_index = (self.h_index+1) % 4
+                if self.h_index==0:
+                    self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/4/65535*16 + 4
+                    self.slow_m = self.mA * self.k + self.a
+                    # if not fast: 
+                    #     self.m = self.a + self.mA*self.k 
+                    self.mA += 4
+                    if self.__raw is not None:
+                        self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
+                    else:
+                        self.still = True
+                    self.__raw = raw
+                self.ok = True
 
-            if self.f_shift():
-                self.a = -(self.mA-4)*self.k
-            if self.f_set():
-                self.tune( Weight.g_Load )
+                if self.f_shift():
+                    self.a = -(self.mA-4)*self.k
+                if self.f_set():
+                    self.tune( Weight.g_Load )
 
-            # if fast:
-            self.fast_m = ( (raw & 0xFFFC)/0x1000 )*self.k + self.a
+                self.fast_m = ( (raw & 0xFFFC)/0x1000 )*self.k + self.a
 
-            if self.step>0:
-                self.m = self.step*int(self.fast_m/self.step)
+                if self.step>0:
+                    self.m = self.step*int(self.fast_m/self.step)
+                else:
+                    self.m = self.fast_m
             else:
-                self.m = self.fast_m
+                self.ok = False
+
         return self.m
