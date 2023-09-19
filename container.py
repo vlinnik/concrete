@@ -241,7 +241,7 @@ class FlowMeter(SFC):
         self.complete = False
 
 class Accelerator():
-    def __init__(self, outs: list[callable], sts: list[callable] = [] ):
+    def __init__(self, outs: list[callable], sts: list[callable] = [],turbo = True ):
         self.en = True
         self.cnt = len(outs)  #сколько доступно затворов
         self.src = None       #основной бункер
@@ -251,6 +251,7 @@ class Accelerator():
         self.nxt = 0          #кто на очереди
         self.out = False      #выход в обычном режиме 
         self.closed = True    #состояние обобщенное
+        self.turbo = turbo
         self.dis = [ f'disable_{i}' for i in range(1,self.cnt+1)]
         self.man = [ f'out_{i}' for i in range(1,self.cnt+1)]
     
@@ -288,7 +289,7 @@ class Accelerator():
                 self.out = self.out or (self.src.out and not self.disabled(i) and not self.src.lock)
                 if not self.disabled(i):
                     o(self.src.out and not self.src.lock)
-                    break
+                    if not self.turbo: break
                 
                 i+=1
         else:

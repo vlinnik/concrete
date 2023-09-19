@@ -5,8 +5,48 @@ from concrete.weight import Weight
 from concrete.container import Container
 from concrete.dosator import Dosator
 
+from pyplc.sfc import *
+
+@sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
+class Vibrator(SFC):
+    def __init__(self, auto: bool = False,containers: list[Container]=None, weight : Weight = None):
+        self.containers = containers
+        self.weight = weight
+        self.auto = auto
+        self.q = False
+
+    @sfcaction
+    def main(self):
+        if self.weight is None or self.containers is None or not self.auto: return
+
+        clk = False #определим включение есть/нет
+        for c in self.containers:
+            clk = clk or c.out
+
+        if not clk: #если нет включения ничего не делаем
+            return
+        
+        #self.q = True   #после открытия делаем короткое включение
+        
+        while clk:
+            before_m = self.weight.raw
+            self.q = True
+            for i in self.pause(1000):
+                yield i
+            self.q = False
+            for i in self.pause(2000):
+                yield i
+            after_m = self.weight.raw
+            if abs(before_m-after_m)>500:
+                break
+            
+            clk = False #определим включение есть/нет
+            for c in self.containers:
+                clk = clk or c.out
+        
+    
 @stl(inputs=['auto'],outputs=['q'],persistent=['auto'])
-class Vibrator(STL):
+class _Vibrator(STL):
     def __init__(self,auto=False,containers: list[Container]=None, weight : Weight = None):
         self.containers = containers
         self.weight = weight

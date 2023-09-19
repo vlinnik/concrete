@@ -153,6 +153,7 @@ class MSGate(SFC):
 
     @sfcaction
     def main(self):
+        self.unloading = not self.closed
         if self.f_unload( ):
             for x in self.__unload( ):
                 yield x
