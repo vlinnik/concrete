@@ -4,7 +4,7 @@ from pyplc.utils.trig import FTRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter,Flow, RotaryFlowMeter
 
-@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],id='container')
+@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w'],id='container')
 class Container( SFC ):
     """Расходный бункер
     """

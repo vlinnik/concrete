@@ -3,7 +3,7 @@ from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
 import time
 
-@sfc(inputs=['count','go','m','closed','lock','unload'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation','leave','ack'],hidden=['m','closed','fast','unload'])
+@sfc(inputs=['count','go','m','closed','lock','unload'],outputs=['out','fast'],vars=['unloadT','ignore','fail','compensation','leave','ack'],hidden=['m','closed','fast','unload'],persistent=['unloadT','ignore'])
 class Dosator(SFC):
     """Логика дозатора. Выполняет процедуру набора/выгрузки count раз. Выгрузка имеет задержку unloadT
     """
