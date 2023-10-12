@@ -42,6 +42,7 @@ class Weight(STL):
         with self:
             raw = self.overwrite('raw',raw)
             fast = self.overwrite('fast',fast)
+            if raw is None: return 0
             self.hist[self.h_index]=raw
             self.h_index = (self.h_index+1) % 4
             if self.h_index==0:
