@@ -26,7 +26,16 @@ class MSGate(SFC):
         self.pt = 10
         self.move_t = 10
         self.manual = False
+        self.dr = 0             #в мсек время открытия 
         self.f_unload = FTRIG( clk=lambda: self.unload,id = 'r_unload')
+
+    def emergency(self,value: bool = True ):
+        self.log(f'emergency = {value}')
+        self.sfc_reset = value
+    
+    def set_lock(self, val: bool):
+        if val is not None:
+            self.lock = val
 
     def __auto( self,open ):
         if not self.manual:
@@ -101,9 +110,23 @@ class MSGate(SFC):
         pt = self.pt if pt is None else pt
         move_t = self.move_t if move_t is None else move_t
         self.log(f'opening')
-        for x in self.__begin_open():
-            yield x
-        pt = self.T + pt*1000
+
+        if self.dr>0:
+            cnt = pt*1000/self.dr
+            while cnt>0 and self.dr>0:
+                for x in self.__begin_open():
+                    yield x
+                for x in self.pause( self.dr ):
+                    yield x
+                for x in self.__till_closed( pt = move_t*1000):
+                    yield x
+                cnt-=1
+            pt = self.T + 1000
+        else:
+            for x in self.__begin_open():
+                yield x
+            pt = self.T + pt*1000
+            
         self.log(f'opening until opened')
         for x in self.__till_opened ( pt=move_t*1000 ):
             yield x

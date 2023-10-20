@@ -13,31 +13,31 @@ class Flow():
         self.m = m
         self.clk = clk
 
-@stl(inputs=['flow_in','flow_out'],outputs=['e'])
+@stl(inputs=['flow_in','flow_out','m'],outputs=['e'])
 class Counter(STL):
     def __init__(self,m=0.0, flow_in = False, flow_out = False) -> None:
         self.flow_in = flow_in
         self.flow_out = flow_out 
-        self.__m = m
+        self.__m = None
         self.m = m
         self.e = 0.0
         self.q = Flow( )
-        self.filter = TOF(clk = lambda: self.flow_in,pt=3000 )
+        # self.filter = TOF(clk = lambda: self.flow_in,pt=1000 )
         self.f_out = FTRIG(clk = lambda: self.flow_out )
-        self.trig = TRIG(clk = lambda: self.filter.q)
+        self.trig = TRIG(clk = lambda: self.flow_in)
 
     def __call__(self, m = None) :
         with self:
             self.m = self.overwrite('m',m)
             
-            self.filter( )
+            # self.filter( )
             self.f_out( )
             self.q(self.flow_out,self.e )
             if self.f_out.q:
                 self.e = 0 
 
             if self.trig( ):
-                if self.flow_in:
+                if self.flow_in or self.__m is None:
                     self.__m = self.m
                 else:
                     self.e += self.m - self.__m
