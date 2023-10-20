@@ -30,3 +30,26 @@ class Vibrator(STL):
                     if self.trig.q and c.out : self.q = True
                     
             if self.trig.q and not self.blink.q: self.q = False
+            
+@stl(inputs=['auto'],outputs=['q'],persistent=['auto'])
+class UnloadHelper(STL):
+    def __init__(self,auto=False,dosator: Dosator=None, weight : Weight = None):
+        self.dosator = dosator
+        self.weight = weight
+        self.auto = auto
+        self.q = False
+        self.blink = BLINK( t_on = 1000,t_off = 2000 )
+        self.trig = TRIG( clk = lambda:self.blink.q )
+        
+    def __call__(self):
+        if self.weight is None or self.dosator is None: return
+        with self:
+            clk = (self.dosator.out and self.weight.still and self.dosator.m>self.dosator.ignore)
+            
+            self.blink( enable = clk )
+            self.trig( )
+            
+            if self.auto:
+                if self.trig.q and self.dosator.out : self.q = True
+                    
+            if self.trig.q and not self.blink.q: self.q = False
