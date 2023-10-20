@@ -72,6 +72,7 @@ class Mixer(SFC):
         self.f_loaded.unset( )
         self.ready = False
         self.sfc_reset = value
+        self.f_loaded.unset()
     
     def __always(self):
         if self.f_ack.q: self.req=False
