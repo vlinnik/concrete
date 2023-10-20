@@ -1,7 +1,7 @@
 from pyplc.stl import *
 from pyplc.utils.trig import FTRIG
     
-@stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'])
+@stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'],hidden=['raw','ok','k','a'])
 class Weight(STL):
     g_Load = 0.0
     def __init__(self,raw=0,mmax=None):
@@ -22,6 +22,9 @@ class Weight(STL):
         self.f_shift = FTRIG(clk=lambda: self.shift)
         self.f_set = FTRIG(clk=lambda: self.set)
         self.h_index = 0
+    
+    def mode(self,fast: bool):
+        self.fast = fast
         
     def tune(self,load):
         self.points.append( (self.mA,load) )
@@ -38,6 +41,7 @@ class Weight(STL):
         with self:
             raw = self.overwrite('raw',raw)
             fast = self.overwrite('fast',fast)
+            if raw is None: return 0
             self.hist[self.h_index]=raw
             self.h_index = (self.h_index+1) % 4
             if self.h_index==0:
@@ -45,7 +49,8 @@ class Weight(STL):
                 if not fast: 
                     self.m = self.a + self.mA*self.k 
                 self.mA += 4
-                self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
+                if raw is not None and self.__raw is not None:
+                    self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
                 self.__raw = raw
             self.ok = True
 
@@ -58,5 +63,5 @@ class Weight(STL):
                 self.m = (raw/0x1000)*self.k + self.a    #optimized raw/0x10000*16*self.k + self.a
 
             if self.step>0:
-                return self.step*int(self.m/self.step)
+                self.m = self.step*int(self.m/self.step)
         return self.m
