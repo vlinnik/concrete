@@ -4,7 +4,7 @@ from pyplc.utils.latch import RS
 from .factory import Factory
 from .counting import Flow,Expense
 
-@sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack'] )
+@sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid','breakpoint'] )
 class Mixer(SFC):
     """Смеситель
 
@@ -28,6 +28,8 @@ class Mixer(SFC):
         self.ack = False
         self.nack = False
         self.req = True
+        self.forbid = False
+        self.breakpoint = False
         self.clock = 0
         self.state = 'СВОБОДНА'
         self.f_go = RTRIG( clk = lambda: self.go , id = 'f_go')
@@ -46,8 +48,29 @@ class Mixer(SFC):
 
         self.subtasks = [self.f_loaded,self.__counting,self.__always,self.f_go,self.f_ack,self.f_nack]
     
+    @sfcaction
+    def timer(self,preset: int, up: bool = True):
+        """Отсчет времени и обновление свойства clock
+
+        Args:
+            preset (int): сколько секунд
+            up (bool, optional): обратный или прямой отсчет. Defaults to True (прямой).
+
+        Yields:
+            True: не используется
+        """        
+        T = preset*1000
+        self.clock = 0 if up else preset
+        while self.T<T and not self.sfc_reset:
+            self.clock = int( self.T/1000) if up else int((T-self.T)/1000)
+            for i in self.pause(1000):
+                yield i
+        self.clock = preset if up else 0
+    
     def emergency(self,value: bool = True ):
         self.log(f'emergency = {value}')
+        self.f_loaded.unset( )
+        self.ready = False
         self.sfc_reset = value
         self.f_loaded.unset()
     
@@ -92,41 +115,39 @@ class Mixer(SFC):
         self.load = False
         
         self.log(f'wait for loaded')
-        begin = self.T
+        timer = self.exec(self.timer(999))
         for x in self.until( lambda: self.f_loaded.q  ):
             if self.loading: self.state=f'ЗАГРУЗКА<sup>{batch+1}/{self.count}</sup>'
-            self.clock = int((self.T-begin)/1000)
             yield x
+        timer.close( )
         self.loaded = False
         self.f_loaded.unset( )
+
+        if batch==0:
+            self.req = True
 
         self.log('mixing...')
         self.ready = batch+1==self.count
         count = self.count
             
         self.state=f'ПЕРЕМЕШИВАНИЕ<sup>{batch+1}/{count}</sup>'
-        begin = self.T
-        for x in self.pause( self.mixT*1000 ):
-            self.clock = self.mixT - int((self.T-begin)/1000)
+        for x in self.exec( self.timer(self.mixT,up=False) ).wait:
             yield x
 
         self.log('unloading')
         if self.gate:
-            if batch==0:
-                self.req = True
-                self.state = f'ПОДТВЕРДИ<sup>{batch+1}/{count}</sup>'
+            self.state = f'ПОДТВЕРДИ<sup>{batch+1}/{count}</sup>'
             for x in self.till(lambda: self.req,step='ack'):
                 yield x
             self.state=f'ВЫГРУЗКА<sup>{batch+1}/{count}</sup>'
             if not self.sfc_reset:
                 self.gate.simple( pt=self.unloadT )
-            begin = self.T
+                
+            self.exec(self.timer(self.unloadT))
             for x in self.till( lambda: self.gate.unloading,min = self.unloadT*1000 ):
-                self.clock = int((self.T - begin)/1000)
                 yield x
         else:
-            for x in self.pause( self.unloadT ):
-                self.clock = self.T
+            for x in self.exec(self.timer(self.unloadT) ).wait:
                 yield x
         self.clock = 0
 
@@ -134,10 +155,6 @@ class Mixer(SFC):
     def main(self) :
         self.log('ready')
         self.state = 'СВОБОДНА'
-        while self.sfc_reset:
-            self.sfc_step = 'emergency'
-            self.gate.lock = True
-            yield True
             
         for x in self.until( lambda: self.go , step ='ready'):
             self.ready = True
