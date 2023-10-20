@@ -47,6 +47,9 @@ class Dosator(SFC):
         self.s_unload.unset( )
         self.s_go.unset()
         self.sfc_reset = value
+        self.out = False
+        self.s_loaded.unset( )
+        self.s_unload.unset( )
             
     def __loading(self):
         result = False

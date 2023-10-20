@@ -242,6 +242,10 @@ class Elevator(SFC):
     def emergency(self,value: bool = True):
         self.log(f'emergency = {value}')
         self.sfc_reset = value
+        self.up = False
+        self.down = False
+        self.s_unload.unset()
+        self.s_loaded.unset()
 
     def __auto(self,up=None,down=None):
         if self.manual!=self.__manual and self.manual:

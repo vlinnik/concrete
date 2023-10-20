@@ -60,7 +60,7 @@ class Factory(STL):
                 for e in self.on_emergency:
                     e( self.emergency )
                 
-            if self.f_powerack( ):
+            if self.f_powerack( ) and self.powerfail:
                 print(f'#{self.id}: power fail acknowledged')
                 self.powerfail = False
                 self.powerack = False
