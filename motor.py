@@ -1,21 +1,28 @@
 from pyplc.sfc import *
 from pyplc.utils.trig import TRIG
-from pyplc.utils.misc import TOF
+# from pyplc.utils.misc import TOF
 
-@sfc(inputs=['ison'],outputs=['on','off','bell','powered'],vars=['manual'],hidden=['ison','bell'])
+# @sfc(inputs=['ison'],outputs=['on','off','bell','powered'],vars=['manual'],hidden=['ison','bell'])
 class Motor(SFC):
     START = 1
     STOP = 2
     BELL = 1000
     E_NONE = 0
     E_TIMEOUT = -1
-
-    def __init__(self,ison:bool=None) -> None:
+    ison = POU.input(False,hidden=True)
+    on = POU.output(False,hidden=True)
+    off= POU.output(False,hidden=True)
+    powered = POU.output(False)
+    bell = POU.output(False,hidden=True)
+    manual = POU.var( False )
+    @POU.init
+    def __init__(self,ison:bool=False) -> None:
         """_summary_
 
         Args:
             ison (_type_, optional): _description_. Defaults to None.
         """
+        super().__init__( )
         self.ison = ison
         self.on = False
         self.off= False
@@ -96,8 +103,10 @@ class Motor(SFC):
     @sfcaction
     def main(self):        
         if self.manual and self.t_manual.q :
+            self.log('power on, manual mode')
             for x in self.action(self._powerOn).wait:
                 yield x
         elif not self.manual and self.t_manual.q:
+            self.log('power off, manual mode')
             for x in self.action(self._powerOff).wait:
                 yield x

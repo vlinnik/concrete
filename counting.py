@@ -1,4 +1,4 @@
-from pyplc.stl import *
+from pyplc.pou import POU
 from pyplc.utils.misc import TOF
 from pyplc.utils.trig import FTRIG,TRIG,RTRIG
 
@@ -13,9 +13,15 @@ class Flow():
         self.m = m
         self.clk = clk
 
-@stl(inputs=['flow_in','flow_out','m'],outputs=['e'])
-class Counter(STL):
+# @stl(inputs=['flow_in','flow_out','m'],outputs=['e'])
+class Counter(POU):
+    flow_in = POU.input(False)
+    flow_out= POU.input(False)
+    m = POU.input(0.0)
+    e = POU.output(0.0)
+    @POU.init
     def __init__(self,m=0.0, flow_in = False, flow_out = False) -> None:
+        super().__init__( )
         self.flow_in = flow_in
         self.flow_out = flow_out 
         self.__m = None
@@ -43,9 +49,13 @@ class Counter(STL):
                     self.e += self.m - self.__m
                     self.__m = self.m
 
-@stl(inputs=['out'],outputs=['e'])
-class Expense(STL):
-    def __init__(self,flow_in: Flow,out=None):
+# @stl(inputs=['out'],outputs=['e'])
+class Expense(POU):
+    out = POU.input(False)
+    e = POU.output(0.0)
+    @POU.init
+    def __init__(self,flow_in: Flow,out:bool=False):
+        super().__init__( )
         self.out = out
         self.e = 0.0
         self.q = Flow( )
@@ -53,7 +63,7 @@ class Expense(STL):
         self.f_in = RTRIG( clk =lambda: self.flow_in.clk )
         self.f_out = FTRIG( clk = lambda: self.out )
 
-    def __call__(self, out = None):
+    def __call__(self, out:bool = None):
         with self:
             self.out = self.overwrite('out',out)
             self.f_in( )
@@ -65,9 +75,15 @@ class Expense(STL):
                 self.e = 0.0
             self.q(not self.out,self.e)
 
-@stl(inputs=['clk','rst','flow_in'],outputs=['e'])
-class RotaryFlowMeter(STL):
+#@stl(inputs=['clk','rst','flow_in'],outputs=['e'])
+class RotaryFlowMeter(POU):
+    clk = POU.input(False)
+    rst = POU.input(False)
+    flow_in = POU.input(True)
+    e = POU.output(0.0)
+    @POU.init
     def __init__(self,weight:float = 1.0,clk:bool=False,rst:bool=False,flow_in:bool=True):
+        super().__init__( )
         self.e = 0.0
         self.weight = weight
         self.clk = clk

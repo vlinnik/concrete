@@ -1,10 +1,22 @@
 from pyplc.stl import *
+from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG
     
-@stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'],hidden=['raw','ok','k','a'])
+# @stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'],hidden=['raw','ok','k','a'])
 class Weight(STL):
     g_Load = 0.0
+    raw = POU.input( 0 , hidden=True)
+    m = POU.output(0.0)
+    ok = POU.output(False,hidden=True)
+    k = POU.var(1.0,persistent=True,hidden=True)
+    a = POU.var(0.0,persistent=True,hidden=True)
+    mA= POU.var(4.0)
+    shift=POU.var(False)
+    set = POU.var(False)
+    step =POU.var(0.1,persistent=True)
+    @POU.init
     def __init__(self,raw=0,mmax=None):
+        super().__init__( )
         self.__raw = raw #для определения still
         self.raw = raw
         self.fast = False

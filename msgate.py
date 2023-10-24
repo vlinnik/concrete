@@ -2,7 +2,7 @@ from pyplc.sfc import *
 from pyplc.utils.trig import FTRIG
 from pyplc.utils.misc import Stopwatch
 
-@sfc( inputs=['closed','opened','lock'],outputs=['open'],vars=['manual','unloading'],id='MSGate' )
+# @sfc( inputs=['closed','opened','lock'],outputs=['open'],vars=['manual','unloading'],id='MSGate' )
 class MSGate(SFC):
     """Пневматический затвор
 
@@ -12,9 +12,17 @@ class MSGate(SFC):
         opened (bool): Состояние "затвор открыт"
         closed (bool): Состояние "затвор закрыт"
     """
+    closed = POU.input(False,hidden=True)
+    opened = POU.input(False,hidden=True)
+    lock = POU.input(False)
+    open = POU.output(False)
+    manual = POU.var(False)
+    unloading = POU.var(False)
     E_NONE = 0
     E_JAM = -1
-    def __init__(self, closed = True, opened=False, open = False,  **kwargs) -> None:
+    @POU.init
+    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False) -> None:
+        super().__init__()
         self.closed = closed
         self.opened = opened
         self.open = open

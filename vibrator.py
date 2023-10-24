@@ -7,9 +7,13 @@ from concrete.dosator import Dosator
 
 from pyplc.sfc import *
 
-@sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
+# @sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
 class Vibrator(SFC):
+    auto = POU.input(False,persistent=True)
+    q = POU.output(False)
+    @POU.init
     def __init__(self, auto: bool = False,containers: list[Container]=None, weight : Weight = None):
+        super( ).__init__( )
         self.containers = containers
         self.weight = weight
         self.auto = auto
@@ -45,9 +49,13 @@ class Vibrator(SFC):
                 clk = clk or c.out
         
             
-@sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
+# @sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
 class UnloadHelper(SFC):
+    auto = POU.input(False,persistent=True)
+    q = POU.output(False)
+    @POU.init
     def __init__(self,auto=False,dosator: Dosator=None, weight : Weight = None, point: int = None):
+        super( ).__init__( )
         self.dosator = dosator
         self.weight = weight
         self.auto = auto

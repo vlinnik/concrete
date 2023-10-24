@@ -1,8 +1,15 @@
 from pyplc.stl import *
+from pyplc.pou import POU
 
-@stl(inputs=['open','close'],outputs=['opened','closed'])
+# @stl(inputs=['open','close'],outputs=['opened','closed'])
 class iGATE(STL):
+    open = POU.input(False,hidden=True)
+    close =POU.input(False,hidden=True)
+    opened=POU.output(False,hidden=True)
+    closed=POU.output(False,hidden=True)
+    @POU.init
     def __init__(self,open=False,close=False,simple=False):
+        super( ).__init__( )
         self.pos = 0
         self.open = open
         self.close= close
@@ -20,9 +27,14 @@ class iGATE(STL):
             self.closed = self.pos==0
             self.opened = self.pos==20
 
-@stl(inputs=['on','off'],outputs=['ison'])
+#@stl(inputs=['on','off'],outputs=['ison'])
 class iMOTOR(STL):
+    on = POU.input(False,hidden=True)
+    off = POU.input(False,hidden=True)
+    ison = POU.output(False,hidden=True)
+    @POU.init
     def __init__(self,simple=False,on=False,off=False,ison=False):
+        super().__init__( )
         self.simple = simple
         self.on = on
         self.off = off
@@ -39,10 +51,15 @@ class iMOTOR(STL):
                 elif off:
                     self.ison = False
 
-@stl(inputs=['loading','unloading'],outputs=['q'])
+#@stl(inputs=['loading','unloading'],outputs=['q'])
 class iWEIGHT(STL):
-    def __init__(self,speed=10,loading = False,unloading=False):
-        self.q = 0
+    loading = POU.input(False,hidden=True)
+    unloading =POU.input(False,hidden=True)
+    q = POU.output(0,hidden=True)
+    @POU.init
+    def __init__(self,speed=10,loading = False,unloading=False,q: int = 0):
+        super().__init__( )
+        self.q = q
         self.loading = loading
         self.unloading = unloading 
         self.speed = speed
@@ -56,9 +73,14 @@ class iWEIGHT(STL):
                 self.q = self.q-self.speed if self.q-self.speed>0 else 0
             return self.q
 
-@stl(inputs=['open'],outputs=['closed','opened'])
+# @stl(inputs=['open'],outputs=['closed','opened'])
 class iVALVE(STL):
+    open = POU.input(False,hidden=True)
+    closed=POU.output(False,hidden=True)
+    opened=POU.output(False,hidden=True)
+    @POU.init
     def __init__(self,open=False):
+        super().__init__( )
         self.closed = True
         self.opened = False
         self.open = open
@@ -68,9 +90,16 @@ class iVALVE(STL):
             self.closed = not open
             self.opened = open 
 
-@stl(inputs=['up','down'],outputs=['below','above','middle'])
+# @stl(inputs=['up','down'],outputs=['below','above','middle'])
 class iELEVATOR(STL):
+    up = POU.input(False,hidden=True)
+    down=POU.input(False,hidden=True)
+    below=POU.output(False,hidden=True)
+    above=POU.output(False,hidden=True)
+    middle=POU.output(False,hidden=True)
+    @POU.init
     def __init__(self,up=False,down=False,moveT=200):
+        super( ).__init__( )
         self.pos = 0
         self.up = up
         self.down = down

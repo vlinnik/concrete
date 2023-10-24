@@ -1,14 +1,29 @@
-from pyplc.stl import *
+from pyplc.pou import POU
 from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON
 import time
 
-@stl(vars=['manual','emergency','powerfail','powerack','imitation','moto','used','code','activated','over','scanTime','powered'],persistent=['moto','used','activated','over','powered'])
-class Factory(STL):
-    CODES = [492514677,966469493,479980427,240744683,701396280,550554374,993031528,853155165,307705131,476236431,740255561,206650223,664642972,191186618,887119234,859155162]
+# @stl(vars=['manual','emergency','powerfail','powerack','imitation','moto','used','code','activated','over','scanTime','powered'],persistent=['moto','used','activated','over','powered'])
+class Factory(POU):
+    CODES = []
     LIMIT = 115
     HOUR = 18000000
+
+    manual = POU.var(True)
+    emergency = POU.var(False)
+    powerfail = POU.var(True)
+    powerack = POU.var(False)
+    over = POU.var(False)
+    scanTime = POU.var(0)
+
+    activated = POU.var(False,persistent=True)
+    moto = POU.var(0,persistent=True)
+    used = POU.var(0,persistent=True)
+    powered = POU.var(0,persistent=True)
+
+    @POU.init
     def __init__(self) -> None:
+        super().__init__( )
         self.manual = True
         self.emergency = False
         self.powerfail = True

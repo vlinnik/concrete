@@ -4,7 +4,7 @@ from pyplc.utils.latch import RS
 from .factory import Factory
 from .counting import Flow,Expense
 
-@sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid','breakpoint'] )
+# @sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid','breakpoint'] )
 class Mixer(SFC):
     """Смеситель
 
@@ -14,7 +14,22 @@ class Mixer(SFC):
         loaded ( bool ): сигнал "смеситель загружен"
         load ( bool ): сигнал "можно загружать"
     """
+    go = POU.input(False)
+    count = POU.input( 0 )
+    ready = POU.var(False)
+    clock = POU.var( 0 )
+    state = POU.var( 'ПОДКЛЮЧЕНИЕ' )
+    mixT = POU.var(20)
+    unloadT = POU.var(20)
+    qreset = POU.var(False)
+    ack = POU.var(False)
+    req = POU.var(False)
+    nack = POU.var(False)
+    forbid = POU.var(False)
+    breakpoint = POU.var(False)
+    @POU.init
     def __init__(self, count=1,gate=None, motor=None, go=False, loaded=False, load = False, factory:Factory = None, flows : list[Flow]=None ):
+        super().__init__( )
         self.gate = gate
         self.motor = motor
         self.count = count
@@ -41,8 +56,8 @@ class Mixer(SFC):
         if flows is not None:
             self.expenses=[ Expense( flow_in = f ,out = lambda: self.qreset ) for f in flows ]
             for i in range(0,len(flows)):
-                setattr(self,f'expense_{i}',0.0)
-                self.export(f'expense_{i}')
+                #setattr(self,f'expense_{i}',0.0)
+                self.export(f'expense_{i}',0.0)
         else:
             self.expenses=[ ]
 

@@ -1,14 +1,29 @@
 from pyplc.sfc import *
-from pyplc.stl import *
+from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter,Flow, RotaryFlowMeter
 
-@sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
+# @sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
 class Container( SFC ):
-    """Расходный бункер
-    """
+    """Расходный бункер"""
+    m = POU.input(0.0,hidden=True)
+    sp = POU.input(0.0)
+    go = POU.input(False)
+    closed = POU.input(False,hidden=True)
+    lock = POU.input(False,hidden=True)
+    out = POU.output(False)
+    min_ff = POU.var(0.0,persistent=True)
+    max_ff = POU.var(0.0,persistent=True)
+    min_w = POU.var(100,persistent=True)
+    max_w = POU.var(100,persistent=True)
+    e = POU.var(0.0,persistent=True)
+    busy = POU.var(False)
+    done = POU.var(0.0)
+    err = POU.var(0.0)
+    @POU.init
     def __init__(self, m=0.0, sp = 0.0, go = False,lock=False, closed=True,max_sp: float = 1000) -> None:
+        super().__init__( )
         self.go = go
         self.m = m
         self.sp = sp
@@ -120,7 +135,7 @@ class Container( SFC ):
         if self.take>0:
             from_m -= self.take 
         self.log(f'in precise mode from {from_m}')
-        while self.m<from_m+self.sp*0.99:
+        while self.m<from_m+self.sp*0.99-self.e:
             dm = self.sp+from_m-self.m
             if self.min_ff>0 and dm<=self.min_ff:
                 w = dm/self.min_ff*(self.max_w-self.min_w)+self.min_w
@@ -166,9 +181,20 @@ class Container( SFC ):
             self.log(f'done, m={self.m:.2f}, err={(self.err)/self.sp*100:.1f}%')
         self.take = None
     
-@sfc(inputs=['sp','go','closed','clk'],outputs=['out'],vars=['busy','e','done','err'],id='flowmeter')
+# @sfc(inputs=['sp','go','closed','clk'],outputs=['out'],vars=['busy','e','done','err'],id='flowmeter')
 class FlowMeter(SFC):
+    sp = POU.input(0.0)
+    go = POU.input(False)
+    closed = POU.input(False)
+    clk = POU.input(False)
+    out = POU.output(False)
+    busy = POU.var(False)
+    e = POU.var(0.0,persistent=True)
+    done=POU.var(0.0)
+    err = POU.var(0.0)
+    @POU.init
     def __init__(self, sp = 0.0, clk=False, go = False, closed=True) -> None:
+        super().__init__( )
         self.go = go
         self.sp = sp
         self.closed = closed

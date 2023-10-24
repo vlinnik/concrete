@@ -1,10 +1,18 @@
-from pyplc.stl import *
+from pyplc.pou import POU
 from pyplc.sfc import *
 from pyplc.utils.misc import TOF,TON
 
-@stl(inputs=['ison','lock'],outputs=['out','power'],vars=['pt','manual','active'],persistent = ['pt'],hidden=['ison','out'])
-class Transport(STL):    
-    """Управление транспортными конвейерами"""    
+# @stl(inputs=['ison','lock'],outputs=['out','power'],vars=['pt','manual','active'],persistent = ['pt'],hidden=['ison','out'])
+class Transport(POU):    
+    """Управление транспортными конвейерами"""
+    ison = POU.input(False,hidden=True)
+    lock = POU.input(False)
+    out = POU.output(False,hidden=True)
+    power = POU.output(False,hidden=True)
+    pt = POU.var(5,persistent=True)
+    manual = POU.var(False)
+    active = POU.var(False)    
+    @POU.init
     def __init__(self,auto:bool=False,ison:bool=False,pt:int=5,lock: bool = False):
         """Управление транспортным конвейером
 
@@ -49,13 +57,22 @@ class Transport(STL):
                 self.power = self.manual
                 self.out = self.__auto 
 
-@sfc(inputs=['remote','rot','lock'],outputs=['out'],vars=['manual','rotating','active','pt'],hidden=['rot'],persistent=['active','pt'])
+# @sfc(inputs=['remote','rot','lock'],outputs=['out'],vars=['manual','rotating','active','pt'],hidden=['rot'],persistent=['active','pt'])
 class Gear(SFC):
     """Управление ИМ с датчиком вращения (нория, конвейер)
 
     Поддерживает включение по месту и в автоматическом режиме дистанционно, в автоматическом режиме
     включение ограничено сигналом lock (блокировка)
     """
+    remote = POU.input(False,hidden=True)
+    rot = POU.input(False,hidden=True)
+    lock = POU.input(False)
+    out = POU.output(False)
+    manual = POU.var(False)
+    rotating = POU.var(False)
+    active = POU.var(False,persistent=True)
+    pt = POU.var(1000,persistent=True)
+    @POU.init
     def __init__(self,remote: bool=False, rot:bool = False, lock:bool = False, ms: int = 2000,pt: int = 0 ) -> None:
         super().__init__()
         self.rot = rot

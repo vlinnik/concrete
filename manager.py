@@ -13,6 +13,10 @@ class Readiness():
         self.rails = rails
         self.already = [False]*len(rails)
         self.q = False
+
+    def clear(self,*_):
+        self.already = [False]*len(self.rails)
+        self.q = False
         
     def __call__(self, rst: bool = False):
         n = 0
@@ -45,6 +49,10 @@ class Loaded():
         self.already = [False]*len(rails)
         self.q = False
 
+    def clear(self,*_):
+        self.already = [False]*len(self.rails)
+        self.q = False
+
     def __call__(self, rst: bool = False):
         n = 0
         any_true = False
@@ -60,8 +68,10 @@ class Loaded():
             self.already = [False] * len(self.already)
         return self.q
 
-@stl(outputs=['q'])
-class Multiplexor():
+# @stl(outputs=['q'])
+class Multiplexor(POU):
+    q = POU.output(False)
+    @POU.init
     def __init__(self,count: int, initial: None, prefix:str = 'in_', obj: POU = None):
         self.obj = self if obj is None else obj
         self.index = 0
@@ -83,9 +93,10 @@ class Multiplexor():
 
 """Управление приготовлением бетона 
 """
-@sfc()
 class Manager(SFC):
+    @POU.init
     def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[]):
+        super( ).__init__( )
         self.dosators = dosators
         self.mixer = mixer
         self.ready = True

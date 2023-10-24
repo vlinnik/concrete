@@ -4,9 +4,11 @@ from pyplc.utils.misc import BLINK
 from .factory import Factory
 from .counting import RotaryFlowMeter
 
-@sfc(inputs=['sp','humidity','clk','go'],outputs=['out'],vars=['w0','t0','w1','t1','preT','postT','state','clock','precise','speed','enable','vol'])
+# @sfc(inputs=['sp','humidity','clk','go'],outputs=['out'],vars=['w0','t0','w1','t1','preT','postT','state','clock','precise','speed','enable','vol'])
 class Vodoley(SFC):
+    @POU.init
     def __init__(self,sp=0.0,humidity=0.0,clk = False, go = False,factory: Factory = None ) -> None:
+        super( ).__init__( )
         self.sp = sp
         self.humidity = humidity
         self.clk = clk

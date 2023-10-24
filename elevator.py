@@ -6,7 +6,7 @@ from concrete.factory import Factory
 from concrete.container import Container
 from .counting import Flow,Expense
 
-@sfc(inputs=['m','above','below','middle'],outputs=['up','down'],vars=['maxT','fault','ack','moveT','unloadT','pauseT','manual','state','ignore'],persistent=['maxT','moveT','pauseT','unloadT'])
+# @sfc(inputs=['m','above','below','middle'],outputs=['up','down'],vars=['maxT','fault','ack','moveT','unloadT','pauseT','manual','state','ignore'],persistent=['maxT','moveT','pauseT','unloadT'])
 class Elevator(SFC):
     def __init__(self,ignore: float = 30, m: float=0,above=False,below=False,middle =False, containers: list[Container]=None,factory: Factory=None):
         self.ignore = ignore
