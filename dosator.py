@@ -53,6 +53,8 @@ class Dosator(SFC):
         self.log(f'toggled manual = {manual}')
         self.out = False
         self.manual = manual
+        for c in self.containers:
+            c.switch_mode(manual)
     
     def emergency(self,value: bool = True):
         self.log(f'emergency = {value}')
@@ -64,6 +66,8 @@ class Dosator(SFC):
         self.out = False
         self.s_loaded.unset( )
         self.s_unload.unset( )
+        for c in self.containers:
+            c.emergency(value)
             
     def __loading(self):
         result = False
