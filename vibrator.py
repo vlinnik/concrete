@@ -12,7 +12,7 @@ class Vibrator(SFC):
     auto = POU.input(False,persistent=True)
     q = POU.output(False)
     @POU.init
-    def __init__(self, auto: bool = False,containers: list[Container]=None, weight : Weight = None):
+    def __init__(self, auto: bool = False,containers: list[callable]=None, weight : Weight = None):
         super( ).__init__( )
         self.containers = containers
         self.weight = weight
@@ -25,7 +25,7 @@ class Vibrator(SFC):
 
         clk = False #определим включение есть/нет
         for c in self.containers:
-            clk = clk or c.out
+            clk = clk or c()
 
         if not clk: #если нет включения ничего не делаем
             return
@@ -46,7 +46,7 @@ class Vibrator(SFC):
             
             clk = False #определим включение есть/нет
             for c in self.containers:
-                clk = clk or c.out
+                clk = clk or c()
         
             
 # @sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])

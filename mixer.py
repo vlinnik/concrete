@@ -28,7 +28,7 @@ class Mixer(SFC):
     forbid = POU.var(False)
     breakpoint = POU.var(False)
     @POU.init
-    def __init__(self, count=1,gate=None, motor=None, go=False, loaded=False, load = False, factory:Factory = None, flows : list[Flow]=None ):
+    def __init__(self, count=1,gate=None, motor=None, go=False, loaded=False, load = False, factory:Factory = None, flows : list[Flow]=None, use_ack: bool = True ):
         super().__init__( )
         self.gate = gate
         self.motor = motor
@@ -53,6 +53,7 @@ class Mixer(SFC):
         self.f_loaded = RS( set = lambda: self.loaded, id = 'f_loaded' )
         self.factory = factory
         self.qreset = False
+        self.use_ack = use_ack
         if flows is not None:
             self.expenses=[ Expense( flow_in = f ,out = lambda: self.qreset ) for f in flows ]
             for i in range(0,len(flows)):
@@ -151,18 +152,19 @@ class Mixer(SFC):
 
         self.log('unloading')
         if self.gate:
-            self.state = f'ПОДТВЕРДИ<sup>{batch+1}/{count}</sup>'
-            for x in self.till(lambda: self.req,step='ack'):
-                yield x
+            if self.use_ack:
+                self.state = f'ПОДТВЕРДИ<sup>{batch+1}/{count}</sup>'
+                for x in self.till(lambda: self.req,step='ack'):
+                    yield x
             self.state=f'ВЫГРУЗКА<sup>{batch+1}/{count}</sup>'
             if not self.sfc_reset:
                 self.gate.simple( pt=self.unloadT )
                 
-            self.exec(self.timer(self.unloadT))
+            self.exec(self.timer(self.unloadT,up = False))
             for x in self.till( lambda: self.gate.unloading,min = self.unloadT*1000 ):
                 yield x
         else:
-            for x in self.exec(self.timer(self.unloadT) ).wait:
+            for x in self.exec(self.timer(self.unloadT, up = False) ).wait:
                 yield x
         self.clock = 0
 
