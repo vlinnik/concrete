@@ -15,13 +15,14 @@ class MSGate(SFC):
     closed = POU.input(False,hidden=True)
     opened = POU.input(False,hidden=True)
     lock = POU.input(False)
+    forbid = POU.input(False)
     open = POU.output(False)
     manual = POU.var(False)
     unloading = POU.var(False)
     E_NONE = 0
     E_JAM = -1
     @POU.init
-    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False) -> None:
+    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False, forbid: bool=False) -> None:
         super().__init__()
         self.closed = closed
         self.opened = opened
@@ -31,6 +32,7 @@ class MSGate(SFC):
         self.unloading = False
         self.error = MSGate.E_NONE
         self.lock = False
+        self.forbid = forbid
         self.pt = 10
         self.move_t = 10
         self.manual = False
@@ -163,6 +165,11 @@ class MSGate(SFC):
     def main(self):
         self.unloading = not self.closed
         if self.f_unload( ):
+            self.sfc_step = 'Ждем разрешения открыться'
+            while self.forbid:
+                yield True
+            self.sfc_step = ''
+            
             for x in self.__unload( ):
                 yield x
                 

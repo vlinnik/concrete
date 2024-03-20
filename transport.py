@@ -101,12 +101,18 @@ class Gear(SFC):
         """
         while True:
             last = self.rot
-            for x in self.pause(self.ms):
+            if self.ms>0:
+                for x in self.pause(self.ms):
+                    self.auto( self.delay( pt = self.pt*1000) )
+                    yield x
+                    if self.rot!=last:
+                        self.rotating = True
+                        break
+                    last = self.rot
+                if last==self.rot:
+                    self.rotating = False
+            else:
                 self.auto( self.delay( pt = self.pt*1000) )
-                yield x
-                if self.rot!=last:
-                    self.rotating = True
-                    break
-                last = self.rot
-            if last==self.rot:
-                self.rotating = False
+                self.rotating = self.rot
+            yield True
+            

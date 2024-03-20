@@ -157,6 +157,9 @@ class Mixer(SFC):
             self.state=f'ВЫГРУЗКА<sup>{batch+1}/{count}</sup>'
             if not self.sfc_reset:
                 self.gate.simple( pt=self.unloadT )
+
+            while self.gate.closed:
+                yield True
                 
             self.exec(self.timer(self.unloadT))
             for x in self.till( lambda: self.gate.unloading,min = self.unloadT*1000 ):
