@@ -53,6 +53,8 @@ class Dosator(SFC):
         self.log(f'toggled manual = {manual}')
         self.out = False
         self.manual = manual
+        for c in self.containers:
+            c.switch_mode(manual)
     
     def emergency(self,value: bool = True):
         self.log(f'emergency = {value}')
@@ -64,6 +66,8 @@ class Dosator(SFC):
         self.out = False
         self.s_loaded.unset( )
         self.s_unload.unset( )
+        for c in self.containers:
+            c.emergency(value)
             
     def __loading(self):
         result = False
@@ -158,6 +162,16 @@ class Dosator(SFC):
             self.__auto(out = False)
             for x in self.until( lambda: self.closed,min=3000, step='wait.closed' ):
                 yield True
+            if self.compensation and self.leave and self.m>self.ignore: #скорректируем ошибку дозирования на то что удалось оставить в дозаторе
+                rest = self.m
+                for c in self.required:
+                    if rest>c.err:
+                        rest-=c.err
+                        c.err = 0
+                    else:
+                        c.err -= rest
+                        rest = 0
+
 
         self.s_loaded.unset( )
         self.s_unload.unset( )
