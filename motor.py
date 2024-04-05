@@ -16,7 +16,7 @@ class Motor(SFC):
     bell = POU.output(False,hidden=True)
     manual = POU.var( False )
     @POU.init
-    def __init__(self,ison:bool=False) -> None:
+    def __init__(self,ison:bool=False, on:bool=False,off:bool = False,bell:bool=False) -> None:
         """_summary_
 
         Args:
@@ -24,9 +24,9 @@ class Motor(SFC):
         """
         super().__init__( )
         self.ison = ison
-        self.on = False
-        self.off= False
-        self.bell=False
+        self.on = on
+        self.off= off
+        self.bell=bell
         self.error=Motor.E_NONE
         self.command = 0
         self.manual = False
@@ -76,7 +76,7 @@ class Motor(SFC):
     def _powerOn(self):
         self.log('power on...')
         if Motor.BELL>0:
-            for x in self.action(self._ringBell).wait:
+            for x in self.action(self._ringBell):
                 if not self.manual and self.t_manual.q :
                     self.log(f'user canceled power on procedure')
                     break
@@ -104,8 +104,7 @@ class Motor(SFC):
     def main(self):        
         if self.manual and self.t_manual.q :
             self.log('power on, manual mode')
-            for x in self.action(self._powerOn).wait:
-                yield x
+            yield from self.action(self._powerOn)
         elif not self.manual and self.t_manual.q:
             self.log('power off, manual mode')
             for x in self.action(self._powerOff).wait:

@@ -77,10 +77,9 @@ class Mixer(SFC):
         """        
         T = preset*1000
         self.clock = 0 if up else preset
-        while self.T<T and not self.sfc_reset:
-            self.clock = int( self.T/1000) if up else int((T-self.T)/1000)
-            for i in self.pause(1000):
-                yield i
+        for _ in self.pause(T):
+            self.clock = self.clock+1 if up else self.clock-1
+            yield from self.pause(1000)
         self.clock = preset if up else 0
     
     def emergency(self,value: bool = True ):
@@ -147,8 +146,7 @@ class Mixer(SFC):
         count = self.count
             
         self.state=f'ПЕРЕМЕШИВАНИЕ<sup>{batch+1}/{count}</sup>'
-        for x in self.exec( self.timer(self.mixT,up=False) ).wait:
-            yield x
+        yield from self.exec( self.timer(self.mixT,up=False) )
 
         self.log('unloading')
         if self.gate:
