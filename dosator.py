@@ -20,7 +20,7 @@ class Dosator(SFC):
     leave = POU.var(False)
     ack = POU.var(False)
     @POU.init
-    def __init__(self,m=0, closed=True,count=1,go=False,loaded=False,unload=False,out=False,unloaded=False,unloadT=0,lock=False,containers = []) -> None:
+    def __init__(self,m=0, closed=True,count=1,go=False,loaded=False,unload=False,out=False,fast = False, unloaded=False,unloadT=0,lock=False,containers = []) -> None:
         super().__init__( )
         self.count = count
         self.go = go
@@ -38,7 +38,7 @@ class Dosator(SFC):
         self.manual = True
         self.lock = lock
         self.compensation = False
-        self.fast = False
+        self.fast = fast
         self.leave = False
         self.ack = False
         self.s_go = RS(set = lambda: self.go,id = 's_go')

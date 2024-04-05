@@ -18,6 +18,7 @@ class MSGate(SFC):
     open = POU.output(False)
     manual = POU.var(False)
     unloading = POU.var(False)
+    dr = POU.var(0,persistent=True)
     E_NONE = 0
     E_JAM = -1
     @POU.init
@@ -115,43 +116,30 @@ class MSGate(SFC):
 
     def __unload(self,pt=None,move_t=None):
         self.unloading = True
-        pt = self.pt if pt is None else pt
+        pt = self.overwrite('pt',pt)
         move_t = self.move_t if move_t is None else move_t
         self.log(f'opening')
 
         if self.dr>0:
-            cnt = pt*1000/self.dr
-            while cnt>0 and self.dr>0:
-                for x in self.__begin_open():
-                    yield x
-                for x in self.pause( self.dr ):
-                    yield x
-                for x in self.__till_closed( pt = move_t*1000):
-                    yield x
-                cnt-=1
-            pt = self.T + 1000
+            for _ in self.pause( pt*1000,step='pulse.unload' ):
+                yield from self.__begin_open()
+                yield from self.pause( self.dr )
+                yield from self.__till_closed( pt = move_t*1000)
+            pt = 0
         else:
-            for x in self.__begin_open():
-                yield x
-            pt = self.T + pt*1000
+            yield from self.__begin_open()
             
         self.log(f'opening until opened')
-        for x in self.__till_opened ( pt=move_t*1000 ):
-            yield x
+        yield from self.__till_opened ( pt=move_t*1000 )
         self.log(f'unloading')
-        if self.T<pt:
-            sw = Stopwatch( clk=lambda: self.opened, pt = pt-self.T )
-            for x in self.until( lambda: sw.q ):
-                sw( )
-                self.__auto(True)
-                yield x
+        for _ in self.pause( pt*1000 , step = 'unloading'):
+            self.__auto(True)
+            yield
 
         self.log(f'closing')
-        for x in self.__begin_close(  ):
-            yield x
+        yield from self.__begin_close(  )
         self.log(f'untill closed')
-        for x in self.__till_closed( pt=move_t*1000 ):
-            yield x
+        yield from self.__till_closed( pt=move_t*1000 )
         self.log(f'done')
         self.unloading = False
 

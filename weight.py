@@ -17,8 +17,8 @@ class Weight(STL):
     @POU.init
     def __init__(self,raw=0,mmax=None):
         super().__init__( )
-        self.__raw = raw #для определения still
         self.raw = raw
+        self.__raw = self.raw #для определения still
         self.fast = False
         self.k=100/16 if mmax is None else mmax/16
         self.a=0.0

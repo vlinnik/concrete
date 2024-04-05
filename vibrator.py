@@ -12,12 +12,12 @@ class Vibrator(SFC):
     auto = POU.input(False,persistent=True)
     q = POU.output(False)
     @POU.init
-    def __init__(self, auto: bool = False,containers: list[callable]=None, weight : Weight = None):
+    def __init__(self, auto: bool = False,q: bool = False,containers: list[callable]=None, weight : Weight = None):
         super( ).__init__( )
         self.containers = containers
         self.weight = weight
         self.auto = auto
-        self.q = False
+        self.q = q
 
     @sfcaction
     def main(self):
@@ -54,12 +54,12 @@ class UnloadHelper(SFC):
     auto = POU.input(False,persistent=True)
     q = POU.output(False)
     @POU.init
-    def __init__(self,auto=False,dosator: Dosator=None, weight : Weight = None, point: int = None):
+    def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None):
         super( ).__init__( )
         self.dosator = dosator
         self.weight = weight
         self.auto = auto
-        self.q = False
+        self.q = q
         self.point = point
 
     @sfcaction

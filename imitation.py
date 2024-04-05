@@ -8,13 +8,13 @@ class iGATE(STL):
     opened=POU.output(False,hidden=True)
     closed=POU.output(False,hidden=True)
     @POU.init
-    def __init__(self,open=False,close=False,simple=False):
+    def __init__(self,open=False,close=False,opened:bool=False,closed:bool=True,simple=False):
         super( ).__init__( )
         self.pos = 0
         self.open = open
         self.close= close
-        self.opened = False
-        self.closed = False
+        self.opened = opened
+        self.closed = closed
         self.simple = simple
     def __call__(self, open=None,close=None):
         with self:
@@ -79,10 +79,10 @@ class iVALVE(STL):
     closed=POU.output(False,hidden=True)
     opened=POU.output(False,hidden=True)
     @POU.init
-    def __init__(self,open=False):
+    def __init__(self,open=False,closed:bool=True,opened:bool=False):
         super().__init__( )
-        self.closed = True
-        self.opened = False
+        self.closed = closed
+        self.opened = opened
         self.open = open
     def __call__(self, open=None):
         with self:

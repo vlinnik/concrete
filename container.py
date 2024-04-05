@@ -22,7 +22,7 @@ class Container( SFC ):
     done = POU.var(0.0)
     err = POU.var(0.0)
     @POU.init
-    def __init__(self, m=0.0, sp = 0.0, go = False,lock=False, closed=True,max_sp: float = 1000) -> None:
+    def __init__(self, m=0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000) -> None:
         super().__init__( )
         self.go = go
         self.m = m
@@ -33,7 +33,7 @@ class Container( SFC ):
         self.min_w = 100
         self.max_w = 500
         self.closed = closed
-        self.out = False
+        self.out = out
         self.fast = False
         self.ready = True
         self.busy = False
@@ -99,7 +99,7 @@ class Container( SFC ):
         self.fast = True
         self.sp = sp
         from_m = self.m if from_m is None else from_m
-        if self.take>0:
+        if self.take is not None and self.take>0:
             from_m-= self.take 
         self.log(f'in rought mode from {from_m}')
         from_T = self.time()
@@ -132,7 +132,7 @@ class Container( SFC ):
         self.fast = False
         self.sp = sp
         from_m = self.m if from_m is None else from_m
-        if self.take>0:
+        if self.take is not None and self.take>0:
             from_m -= self.take 
         self.log(f'in precise mode from {from_m}')
         while self.m<from_m+self.sp*0.99-self.e:
