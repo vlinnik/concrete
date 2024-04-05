@@ -1,5 +1,6 @@
 from pyplc.stl import *
 from pyplc.pou import POU
+from pyplc.channel import Channel
 
 # @stl(inputs=['open','close'],outputs=['opened','closed'])
 class iGATE(STL):
@@ -27,18 +28,16 @@ class iGATE(STL):
             self.closed = self.pos==0
             self.opened = self.pos==20
 
-#@stl(inputs=['on','off'],outputs=['ison'])
 class iMOTOR(STL):
     on = POU.input(False,hidden=True)
     off = POU.input(False,hidden=True)
     ison = POU.output(False,hidden=True)
-    @POU.init
-    def __init__(self,simple=False,on=False,off=False,ison=False):
+    def __init__(self,simple=False,on:bool=False,off:bool=False,ison:Channel=None):
         super().__init__( )
         self.simple = simple
         self.on = on
         self.off = off
-        self.ison = ison
+        self.ison = ison.force if ison is not None else False
     def __call__(self, on=None,off=None):
         with self:
             on = self.overwrite('on',on)

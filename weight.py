@@ -2,33 +2,29 @@ from pyplc.stl import *
 from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG
     
-# @stl(inputs=['raw'],outputs=['m','ok'],vars=['k','a','mA','shift','set','step'],persistent=['k','a'],hidden=['raw','ok','k','a'])
 class Weight(STL):
     g_Load = 0.0
     raw = POU.input( 0 , hidden=True)
     m = POU.output(0.0)
-    ok = POU.output(False,hidden=True)
     k = POU.var(1.0,persistent=True,hidden=True)
     a = POU.var(0.0,persistent=True,hidden=True)
     mA= POU.var(4.0)
     shift=POU.var(False)
     set = POU.var(False)
     step =POU.var(0.1,persistent=True)
-    @POU.init
-    def __init__(self,raw=0,mmax=None):
-        super().__init__( )
+    def __init__(self,raw: int =0, mmax:int =None,id: str=None,parent: POU=None):
+        super().__init__( id, parent )
         self.raw = raw
         self.__raw = self.raw #для определения still
-        self.fast = False
         self.k=100/16 if mmax is None else mmax/16
         self.a=0.0
         self.mA = 4.0
         self.hist=[0]*4
         self.points=[]
-        self.ok = False
         self.shift = False
         self.set = False
         self.still = True
+        self.ok = False
         self.m = 0.0
         self.slow_m = 0.0   #для учета среднее по последним 4 измерениям (hist)
         self.fast_m = 0.0   #для дозирования без округления по step
@@ -37,9 +33,6 @@ class Weight(STL):
         self.f_set = FTRIG(clk=lambda: self.set)
         self.h_index = 0
     
-    def mode(self,fast: bool):
-        self.fast = fast
-        
     def tune(self,load):
         self.points.append( (self.mA,load) )
         if len(self.points)>1:
@@ -49,28 +42,24 @@ class Weight(STL):
             if abs(mA1 - mA0)>=0.005:
                 self.k = (m1-m0)/(mA1-mA0)
                 self.a = m1 - (mA1-4)*self.k
-            self.points.clear()
+                self.points.clear()
 
-    def __call__(self,raw=None,fast=None):
+    def __call__(self,raw:int=None):
         with self:
             raw = self.overwrite('raw',raw)
-            fast = self.overwrite('fast',fast)
             if raw is not None:
                 self.hist[self.h_index]=raw & 0xFFFC
                 self.h_index = (self.h_index+1) % 4
                 if self.h_index==0:
                     self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/4/65535*16 + 4
                     self.slow_m = self.mA * self.k + self.a
-                    # if not fast: 
-                    #     self.m = self.a + self.mA*self.k 
                     self.mA += 4
                     if self.__raw is not None:
                         self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
                     else:
                         self.still = True
                     self.__raw = raw
-                self.ok = True
-
+    
                 if self.f_shift():
                     self.a = -(self.mA-4)*self.k
                 if self.f_set():
@@ -82,6 +71,7 @@ class Weight(STL):
                     self.m = self.step*int(self.fast_m/self.step)
                 else:
                     self.m = self.fast_m
+                self.ok = True
             else:
                 self.ok = False
 

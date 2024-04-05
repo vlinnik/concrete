@@ -4,7 +4,6 @@ from pyplc.utils.latch import RS
 from .factory import Factory
 from .counting import Flow,Expense
 
-# @sfc( inputs=['go','count'],vars=['ready','clock','state','mixT','unloadT','qreset','ack','req','nack','forbid','breakpoint'] )
 class Mixer(SFC):
     """Смеситель
 
@@ -27,9 +26,8 @@ class Mixer(SFC):
     nack = POU.var(False)
     forbid = POU.var(False)
     breakpoint = POU.var(False)
-    @POU.init
-    def __init__(self, count=1,gate=None, motor=None, go=False, loaded=False, load = False, factory:Factory = None, flows : list[Flow]=None, use_ack: bool = True ):
-        super().__init__( )
+    def __init__(self, count=1,gate=None, motor=None, go=False, loaded=False, load = False, factory:Factory = None, flows : list[Flow]=None, use_ack: bool = True ,id:str=None,parent:POU=None):
+        super().__init__( id,parent)
         self.gate = gate
         self.motor = motor
         self.count = count
@@ -57,14 +55,12 @@ class Mixer(SFC):
         if flows is not None:
             self.expenses=[ Expense( flow_in = f ,out = lambda: self.qreset ) for f in flows ]
             for i in range(0,len(flows)):
-                #setattr(self,f'expense_{i}',0.0)
                 self.export(f'expense_{i}',0.0)
         else:
             self.expenses=[ ]
 
         self.subtasks = [self.f_loaded,self.__counting,self.__always,self.f_go,self.f_ack,self.f_nack]
     
-    @sfcaction
     def timer(self,preset: int, up: bool = True):
         """Отсчет времени и обновление свойства clock
 
@@ -83,7 +79,7 @@ class Mixer(SFC):
         self.clock = preset if up else 0
     
     def emergency(self,value: bool = True ):
-        self.log(f'emergency = {value}')
+        self.log(f'аварийный режим = {value}')
         self.f_loaded.unset( )
         self.ready = False
         self.sfc_reset = value
@@ -110,30 +106,28 @@ class Mixer(SFC):
     def __cycle(self,batch = 0):
         if self.gate and not self.gate.closed:
             self.state = 'ЗАКРЫТЬ'
-            self.log('waiting for gate become closed...')
-            for x in self.until(lambda: self.gate.closed, step = 'closing'):
+            self.log('ждем закрытия затвора...')
+            for _ in self.until(lambda: self.gate.closed, step = 'closing'):
                 self.gate.lock = True
                 self.clock = self.T
-                yield True
+                yield
             self.gate.lock = False
         
         if self.motor and not self.motor.ison:
-            self.log('waiting for motor turn on')
+            self.log('ждем включения двигателя...')
             self.state = 'ВКЛЮЧИТЬ'
-            for x in self.until(lambda: self.motor.ison,step = 'turn.on' ):
-                yield x
+            yield from self.until(lambda: self.motor.ison,step = 'turn.on' )
 
-        self.log(f'ready for knead #{batch}')
         self.state=f'НАБОР<sup>{batch+1}/{self.count}</sup>'
         self.load = True
-        yield True
+        yield 
         self.load = False
         
-        self.log(f'wait for loaded')
+        self.log(f'ждем набора #{batch+1} замеса')
         timer = self.exec(self.timer(999))
-        for x in self.until( lambda: self.f_loaded.q  ):
+        for _ in self.until( lambda: self.f_loaded.q  ):
             if self.loading: self.state=f'ЗАГРУЗКА<sup>{batch+1}/{self.count}</sup>'
-            yield x
+            yield from self.pause(1000)
         timer.close( )
         self.loaded = False
         self.f_loaded.unset( )
@@ -141,55 +135,48 @@ class Mixer(SFC):
         if batch==0:
             self.req = True
 
-        self.log('mixing...')
+        self.log(f'перемешивание #{batch+1}/{self.count}')
         self.ready = batch+1==self.count
         count = self.count
             
         self.state=f'ПЕРЕМЕШИВАНИЕ<sup>{batch+1}/{count}</sup>'
         yield from self.exec( self.timer(self.mixT,up=False) )
 
-        self.log('unloading')
+        self.log(f'выгрузка #{batch+1}/{self.count}')
         if self.gate:
             if self.use_ack:
                 self.state = f'ПОДТВЕРДИ<sup>{batch+1}/{count}</sup>'
                 for x in self.till(lambda: self.req,step='ack'):
                     yield x
             self.state=f'ВЫГРУЗКА<sup>{batch+1}/{count}</sup>'
-            if not self.sfc_reset:
-                self.gate.simple( pt=self.unloadT )
+            self.gate.simple( pt=self.unloadT )
                 
             self.exec(self.timer(self.unloadT,up = False))
-            for x in self.till( lambda: self.gate.unloading,min = self.unloadT*1000 ):
-                yield x
+            yield from self.till( lambda: self.gate.unloading,min = self.unloadT*1000 )
         else:
-            for x in self.exec(self.timer(self.unloadT, up = False) ).wait:
-                yield x
+            yield from self.exec(self.timer(self.unloadT, up = False) )
         self.clock = 0
 
-    @sfcaction
     def main(self) :
-        self.log('ready')
+        self.log('готов')
         self.state = 'СВОБОДНА'
             
-        for x in self.until( lambda: self.go , step ='ready'):
+        for _ in self.until( lambda: self.go , step ='ready'):
             self.ready = True
-            yield x
-        for x in self.till( lambda: self.go , step = 'steady'):
+            yield 
+        for _ in self.till( lambda: self.go , step = 'steady'):
             self.ready = False
-            yield x
+            yield 
 
         self.ready = False
-        self.log(f'starting {self.count} kneads...')
+        self.log(f'начало замеса(ов): {self.count} шт')
         batch = 0
         self.state = 'ПОДГОТОВКА'
         count = self.count
         while batch<count and not self.sfc_reset:
-            for x in self.__cycle(batch):
-                yield x
+            yield from self.__cycle(batch)
+
             batch += 1
             if not self.ready:
                 count = self.count
-            self.log(f'complete {batch}/{count}')
-
-        self.log(f'finished {batch} kneads')
 

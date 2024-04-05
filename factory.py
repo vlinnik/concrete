@@ -3,7 +3,6 @@ from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON
 import time
 
-# @stl(vars=['manual','emergency','powerfail','powerack','imitation','moto','used','code','activated','over','scanTime','powered'],persistent=['moto','used','activated','over','powered'])
 class Factory(POU):
     CODES = []
     LIMIT = 115
@@ -21,9 +20,8 @@ class Factory(POU):
     used = POU.var(0,persistent=True)
     powered = POU.var(0,persistent=True)
 
-    @POU.init
-    def __init__(self) -> None:
-        super().__init__( )
+    def __init__(self,id:str = None,parent:POU=None) -> None:
+        super().__init__( id,parent )
         self.manual = True
         self.emergency = False
         self.powerfail = True
@@ -40,8 +38,8 @@ class Factory(POU):
         self.over = False
         self.powered = 0
         self.last_call = time.time_ns( )
-        self.on_mode = [lambda *args: print(f'#{self.id}: manual toggled ',*args)]
-        self.on_emergency = [lambda *args: print(f'#{self.id}: emergency toggled ',*args)]
+        self.on_mode = [lambda *args: self.log('ручной режим = ',*args)]
+        self.on_emergency = [lambda *args: self.log('аварийный режим = ',*args)]
     def trial(self):
         if self.activated:
             return
@@ -63,9 +61,8 @@ class Factory(POU):
 
     def __call__(self) :
         with self:
-            now = time.time_ns( )
-            self.scanTime = int((now - self.last_call)/1000000)
-            self.last_call = now
+            self.scanTime = int((POU.NOW_MS - self.last_call))
+            self.last_call = POU.NOW_MS
             # self.trial( )
             if self.f_manual( ):
                 for e in self.on_mode:
@@ -75,7 +72,7 @@ class Factory(POU):
                     e( self.emergency )
                 
             if self.f_powerack( ) and self.powerfail:
-                print(f'#{self.id}: power fail acknowledged')
+                self.log(f'перезагрузка/отключение зарегистрировано')
                 self.powerfail = False
                 self.powerack = False
                 self.powered += 1

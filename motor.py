@@ -1,9 +1,9 @@
-from pyplc.sfc import *
+from pyplc.sfc import SFC,POU
 from pyplc.utils.trig import TRIG
-# from pyplc.utils.misc import TOF
 
-# @sfc(inputs=['ison'],outputs=['on','off','bell','powered'],vars=['manual'],hidden=['ison','bell'])
 class Motor(SFC):
+    """Управление двигателем, 2 или 1 сигнала для включения, обратная связь и звонок
+    """
     START = 1
     STOP = 2
     BELL = 1000
@@ -15,97 +15,84 @@ class Motor(SFC):
     powered = POU.output(False)
     bell = POU.output(False,hidden=True)
     manual = POU.var( False )
-    @POU.init
-    def __init__(self,ison:bool=False, on:bool=False,off:bool = False,bell:bool=False) -> None:
-        """_summary_
 
-        Args:
-            ison (_type_, optional): _description_. Defaults to None.
-        """
-        super().__init__( )
+    def __init__(self,ison:bool=False, on:bool=False,off:bool = False,bell:bool=False,powered:bool=False, id:str=None,parent:POU=None) -> None:
+        super().__init__( id,parent )
         self.ison = ison
         self.on = on
         self.off= off
         self.bell=bell
         self.error=Motor.E_NONE
-        self.command = 0
         self.manual = False
-        self.t_manual = TRIG(clk=lambda: self.manual)
         self.powered = False
         self._remote = False
-        self.subtasks = [ self.t_manual ]
         
     def remote(self,on: bool):
         if self._remote==on:
             return
         if on:
-            self.log('remote power on')
-            self.exec(self.action(self._powerOn))
+            self.log('включение двигателя удаленной командой')
+            self.exec(self.__powerOn)
         else:
-            self.log('remote power off')
-            self.exec(self.action(self._powerOff))
+            self.log('выключение двигателя удаленной командой')
+            self.exec(self.__powerOff)
         self._remote = on
 
-    @sfcaction
-    def _ringBell(self):
-        self.log('ring the bell')
-        for x in self.pause(Motor.BELL):
+    def __ringBell(self):
+        self.log('звонок перед пуском')
+        for _ in self.pause(Motor.BELL):
             self.bell = True
-            yield True
+            yield 
         self.bell = False
+        self.log('сейчас жашнем')
 
-    def _powerPulse(self):
-        self.log('power on pulse')
-        for x in self.till( lambda: self.ison, min=500,max=1000 ):
-            self.on = True
-            self.powered = True
-            if self.t_manual.q and not self.manual:
-                break
-            yield True
-        
-        self.on = False
-
-        if not self.ison:
-            self.log('power on failed')
-            self.error = Motor.E_TIMEOUT
-            self.powered = False
-        else:
-            self.log('succesfully powered on')
-                        
-    @sfcaction
-    def _powerOn(self):
-        self.log('power on...')
+    def __powerOn(self):
+        self.log('запуск двигателя...')
         if Motor.BELL>0:
-            for x in self.action(self._ringBell):
-                if not self.manual and self.t_manual.q :
-                    self.log(f'user canceled power on procedure')
+            for _ in self.__ringBell():
+                if not self.manual and self._remote:
+                    self.log(f'отмена запуска')
                     break
-                yield x
-                
-        if self.manual or self._remote:        
-            for x in self._powerPulse():
-                yield x
+                yield
+            yield from self.pause(1000)
 
-    @sfcaction
-    def _powerOff(self):
-        self.log('power off pulse')
-        for x in self.till( lambda: self.ison, min=1,max=2 ):
+        if self.manual or self._remote:        
+            self.log('пуск двигателя')
+            for _ in self.till( lambda: self.ison, min=500,max=1000 ):
+                self.on = True
+                self.powered = True
+                if not self.manual and not self._remote:
+                    break
+                yield
+            
+            self.on = False
+
+            if not self.ison:
+                self.log('нет обратной связи')
+                self.error = Motor.E_TIMEOUT
+                self.powered = False
+            else:
+                self.log('двигатель включен')
+
+    def __powerOff(self):
+        self.log('останов двигателя')
+        for _ in self.till( lambda: self.ison, min=500,max=1000 ):
             self.powered = False
             self.off = True
-            yield True
+            yield
         self.off = False
         if self.ison:
-            self.log('power off timeout')
+            self.log('нет обратной связи')
             self.error = Motor.E_TIMEOUT
         else:
-            self.log('powered off')
+            self.log('смеситель выключен')
     
-    @sfcaction
     def main(self):        
-        if self.manual and self.t_manual.q :
-            self.log('power on, manual mode')
-            yield from self.action(self._powerOn)
-        elif not self.manual and self.t_manual.q:
-            self.log('power off, manual mode')
-            for x in self.action(self._powerOff).wait:
-                yield x
+        t_manual = TRIG(clk=lambda: self.manual)
+        while True:
+            if t_manual():
+                if self.manual: 
+                    self.exec( self.__powerOn )
+                else:
+                    self.exec( self.__powerOff)
+            yield

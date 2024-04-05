@@ -1,8 +1,6 @@
 from pyplc.sfc import *
 from pyplc.utils.trig import FTRIG
-from pyplc.utils.misc import Stopwatch
 
-# @sfc( inputs=['closed','opened','lock'],outputs=['open'],vars=['manual','unloading'],id='MSGate' )
 class MSGate(SFC):
     """Пневматический затвор
 
@@ -21,9 +19,8 @@ class MSGate(SFC):
     dr = POU.var(0,persistent=True)
     E_NONE = 0
     E_JAM = -1
-    @POU.init
-    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False) -> None:
-        super().__init__()
+    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False,lock:bool = False, id:str=None,parent:POU=None) -> None:
+        super().__init__(id,parent)
         self.closed = closed
         self.opened = opened
         self.open = open
@@ -31,15 +28,14 @@ class MSGate(SFC):
         self.unloaded = False
         self.unloading = False
         self.error = MSGate.E_NONE
-        self.lock = False
+        self.lock = lock
         self.pt = 10
         self.move_t = 10
         self.manual = False
         self.dr = 0             #в мсек время открытия 
-        self.f_unload = FTRIG( clk=lambda: self.unload,id = 'r_unload')
 
     def emergency(self,value: bool = True ):
-        self.log(f'emergency = {value}')
+        self.log(f'аварийный статус = {value}')
         self.sfc_reset = value
     
     def set_lock(self, val: bool):
@@ -52,114 +48,114 @@ class MSGate(SFC):
 
         self.open = self.open and not self.lock
 
-    def __begin_open(self,pt = 3):
+    def __start_unload(self):
+        self.unload = True
+        yield
+        self.unload = False
+
+    def __begin_open(self,pt = 3000):
         self.error = MSGate.E_NONE
         while self.closed:
             self.__auto( True )
-            for x in self.till( lambda: self.closed, max=pt*1000 ):
+            for _ in self.till( lambda: self.closed, max=pt ):
                 self.__auto( True )
-                yield True
+                yield 
             if self.closed:
-                self.log(f'jammed in closed')
+                self.log(f'заклинивание в закрытом состоянии')
                 self.__auto( False )
                 self.error = MSGate.E_JAM
-                for x in self.pause(1000):
-                    yield x
+                yield from self.pause(1000)
         self.__auto( True )
         self.error = MSGate.E_NONE
 
-    def __begin_close(self,pt=3):
+    def __begin_close(self,pt=3000):
         self.error = MSGate.E_NONE
         while self.opened:
             self.__auto( False )
-            for x in self.till( lambda: self.opened, max=pt*1000 ):
-                yield x
+            yield from self.till( lambda: self.opened, max=pt )
             if self.opened:
-                self.log('jammed (full opened)')
+                self.log('заклинило в открытом положении')
                 self.__auto( True )
                 self.error = MSGate.E_JAM
-                for x in self.pause( 1000 ):
-                    yield x
+                yield from self.pause( 1000 )
         self.__auto( False )
         self.error = MSGate.E_NONE
 
     def __till_opened(self,pt=None):
-        pt = self.move_t if pt is None else pt
+        pt = self.overwrite("move_t",pt)*1000
         self.error = MSGate.E_NONE
+        self.log(f'до полного открытия')
         while not self.opened:
-            for x in self.until( lambda: self.opened,max=pt*1000):
+            for _ in self.until( lambda: self.opened,max=pt):
                 self.__auto( True )
-                yield True
+                yield 
             if not self.opened:
-                self.log('jammed (wide opened)')
+                self.log('не доходит до полного открытия')
                 self.error= MSGate.E_JAM
-                for x in self.pause(1000):
+                for _ in self.pause(1000):
                     self.__auto ( False )
-                    yield True
+                    yield 
         self.__auto(True)
         self.error = MSGate.E_NONE
 
-    def __till_closed(self,pt=5):
+    def __till_closed(self,pt=5000):
         self.error = MSGate.E_NONE
         while not self.closed:
-            for x in self.until( lambda: self.closed,max=pt*1000):
+            for _ in self.until( lambda: self.closed,max=pt):
                 self.__auto(False)
-                yield True
+                yield 
             if not self.closed:
-                self.log('jammed (a bit opened)')
+                self.log('Не доходит до полного закрытия')
                 self.error= MSGate.E_JAM
-                for x in self.pause(1000):
+                for _ in self.pause(1000):
                     self.__auto(True)
-                    yield x
+                    yield
         self.__auto(False)
         self.error = MSGate.E_NONE
 
     def __unload(self,pt=None,move_t=None):
         self.unloading = True
-        pt = self.overwrite('pt',pt)
-        move_t = self.move_t if move_t is None else move_t
-        self.log(f'opening')
+        pt = self.overwrite('pt',pt)*1000
+        move_t = self.overwrite('move_t',move_t)*1000
+        self.log(f'начинаем выгрузку')
 
         if self.dr>0:
-            for _ in self.pause( pt*1000,step='pulse.unload' ):
+            for _ in self.pause( pt,step='pulse.unload' ):
                 yield from self.__begin_open()
                 yield from self.pause( self.dr )
-                yield from self.__till_closed( pt = move_t*1000)
+                yield from self.__till_closed( pt = move_t)
             pt = 0
         else:
             yield from self.__begin_open()
             
-        self.log(f'opening until opened')
-        yield from self.__till_opened ( pt=move_t*1000 )
-        self.log(f'unloading')
-        for _ in self.pause( pt*1000 , step = 'unloading'):
+        yield from self.__till_opened ( pt=move_t )
+        self.log(f'выгрузка')
+        for _ in self.pause( pt , step = 'unloading'):
             self.__auto(True)
             yield
 
-        self.log(f'closing')
         yield from self.__begin_close(  )
-        self.log(f'untill closed')
         yield from self.__till_closed( pt=move_t*1000 )
-        self.log(f'done')
+        self.log(f'выгрузка завершена')
         self.unloading = False
 
     def until_unloaded(self,pt=None,move_t=None):
         for x in self.__unload(pt=pt,move_t=move_t):
             yield x
 
-    @sfcaction
     def main(self):
-        self.unloading = not self.closed
-        if self.f_unload( ):
-            for x in self.__unload( ):
-                yield x
-                
-        if self.lock:
-            for x in self.__till_closed( ):
-                yield x
+        f_unload = FTRIG( clk=lambda: self.unload)
+        while True:
+            self.unloading = not self.closed
+            if self.lock:
+                yield from self.__till_closed( )
+            if f_unload( ):
+                yield from self.__unload( )
+            yield
+                    
         
     def simple(self,pt=15,move_t=15):
         self.pt = pt
         self.move_t = move_t
-        self.f_unload(clk=True)
+        self.exec(self.__start_unload)
         

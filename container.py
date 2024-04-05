@@ -21,9 +21,9 @@ class Container( SFC ):
     busy = POU.var(False)
     done = POU.var(0.0)
     err = POU.var(0.0)
-    @POU.init
-    def __init__(self, m=0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000) -> None:
-        super().__init__( )
+
+    def __init__(self, m=0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000,id:str = None, parent: POU = None) -> None:
+        super().__init__( id,parent)
         self.go = go
         self.m = m
         self.sp = sp
@@ -51,12 +51,12 @@ class Container( SFC ):
         self.subtasks = [self.__counting,self.__lock,self.afterOut]
     
     def switch_mode(self,manual: bool):
-        self.log(f'toggle manual = {manual}')
+        self.log(f'ручной режим = {manual}')
         self.manual = manual
         self.out = False
         
     def emergency(self,value: bool = True ):
-        self.log(f'emergency = {value}')
+        self.log(f'аварийный режим = {value}')
         self.out = False
         self.sfc_reset = value
     
@@ -101,9 +101,9 @@ class Container( SFC ):
         from_m = self.m if from_m is None else from_m
         if self.take is not None and self.take>0:
             from_m-= self.take 
-        self.log(f'in rought mode from {from_m}')
-        from_T = self.time()
-        for x in self.till( lambda: self.m<=from_m+self.sp-self.__ff(self.sp),step='rought'):
+        self.log(f'грубый режим с {self.m} кг')
+        from_T = POU.NOW
+        for _ in self.till( lambda: self.m<=from_m+self.sp-self.__ff(self.sp),step='rought'):
             if self.autotune and self.closed:
                 from_T = self.time( )
                 
@@ -111,22 +111,20 @@ class Container( SFC ):
                 self.__auto(False)
                 till_T =self.time()
                 m0 = self.m
-                for y in self.until( lambda: self.closed, min=3000,step = 'autotuning' ):
-                    yield y
-                self.log(f'tuning stop at {m0}/{self.m}, {till_T - from_T} msec')
+                yield from self.until( lambda: self.closed, min=3000,step = 'autotuning' )
+                self.log(f'подстройка {m0}/{self.m}, {till_T - from_T} нсек')
                 self.max_ff = (self.m - from_m - self.max_sp*0.05)
                 self.min_ff = self.max_ff * 1.1
-                self.max_w = max((till_T - from_T)/3,100)
+                self.max_w = max((till_T - from_T)/3000000,100)
                 self.min_w = max(self.max_w/10,100)
                 self.autotune = False
-                self.log(f'Tuning result min_ff/max_ff/min_w/max_w: {self.min_ff}/{self.max_ff}/{self.min_w}/{self.max_w}')
+                self.log(f'рекомендованы min_ff/max_ff/min_w/max_w: {self.min_ff}/{self.max_ff}/{self.min_w}/{self.max_w}')
             self.__auto(True)
-            yield True
+            yield
             
         self.__auto(False)
         self.fast = False
-        for x in self.until( lambda: self.closed,min=3000 ,step = 'after.rought'):
-            yield True
+        yield from self.until( lambda: self.closed,min=3000 ,step = 'after.rought')
 
     def __precise(self,sp,from_m=None):
         self.fast = False
@@ -134,7 +132,7 @@ class Container( SFC ):
         from_m = self.m if from_m is None else from_m
         if self.take is not None and self.take>0:
             from_m -= self.take 
-        self.log(f'in precise mode from {from_m}')
+        self.log(f'точный режим с {self.m} кг')
         while self.m<from_m+self.sp*0.99-self.e:
             dm = self.sp+from_m-self.m
             if self.min_ff>0 and dm<=self.min_ff:
@@ -143,42 +141,29 @@ class Container( SFC ):
                 w = self.min_w
             else:
                 w = self.max_w
-            for x in self.pause( w ):
+            for _ in self.pause( w ):
                 self.__auto( True )
-                yield True
-            for x in self.until(lambda: self.closed, min=3000,step='pulse.low'):
+                yield 
+            for _ in self.until(lambda: self.closed, min=3000,step='pulse.low'):
                 self.__auto( False )
-                yield True
+                yield
     
-    @sfcaction
     def main(self) :
-        self.log(f'ready')
-        self.busy = False
-        while self.sfc_reset:
-            self.err = 0
-            self.out = False
-            self.sfc_step = 'emergency'
-            yield True
-    
-        for x in self.until( self.f_go ,step='ready'):
+        self.log(f'готов')
+        self.busy = False    
+        for _ in self.until( self.f_go ,step='ready'):
             self.busy = False
             self.ready= True
-            yield x
+            yield 
         self.ready= False
         self.busy = True
         from_m = self.m 
-        self.log(f'rought mode from {from_m}')
-        for x in  self.__rought( self.sp ):
-            yield x
-        self.log(f'precise mode from {self.m:.1f}')
-        for x in self.__precise( self.sp, from_m=from_m ):
-            yield x
-        self.log(f'stabilization {self.m:.1f}')
-        for x in self.until(lambda: self.closed, min=2,max=2 ,step = 'stab'):
-            yield x
+        yield from self.__rought( self.sp )
+        yield from self.__precise( self.sp, from_m=from_m )
+        yield from self.until(lambda: self.closed, min=2,max=2 ,step = 'stab')
         if self.sp>0:
-            self.err = (self.m - (from_m + self.sp - (self.take if self.take>0 else 0)) ) 
-            self.log(f'done, m={self.m:.2f}, err={(self.err)/self.sp*100:.1f}%')
+            self.err = (self.m - (from_m + self.sp - (self.take if self.take is not None and self.take>0 else 0)) ) 
+            self.log(f'завершено на {self.m:.2f} кг, погрешность={(self.err)/self.sp*100:.1f}%')
         self.take = None
     
 # @sfc(inputs=['sp','go','closed','clk'],outputs=['out'],vars=['busy','e','done','err'],id='flowmeter')

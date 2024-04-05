@@ -35,7 +35,6 @@ class Readiness():
             n += 1
         self.q = all(self.already) and not any_true
         if self.q or rst:
-            print('readyness active')
             self.already = [False] * len(self.already)
         return self.q
 
@@ -68,10 +67,8 @@ class Loaded():
             self.already = [False] * len(self.already)
         return self.q
 
-# @stl(outputs=['q'])
 class Multiplexor(POU):
     q = POU.output(False)
-    @POU.init
     def __init__(self,count: int, initial: None, prefix:str = 'in_', obj: POU = None):
         self.obj = self if obj is None else obj
         self.index = 0
@@ -91,12 +88,11 @@ class Multiplexor(POU):
                 self.q = None
         return self.q
 
-"""Управление приготовлением бетона 
-"""
 class Manager(SFC):
-    @POU.init
-    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[]):
-        super( ).__init__( )
+    """Управление приготовлением бетона 
+    """
+    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[],id:str=None,parent:POU=None):
+        super( ).__init__( id,parent )
         self.dosators = dosators
         self.mixer = mixer
         self.ready = True
@@ -105,41 +101,37 @@ class Manager(SFC):
         self.targets = []
         
     def emergency(self,value: bool = True ):
-        self.log(f'emergency = {value}')
+        self.log(f'аварийный режим = {value}')
         self.sfc_reset = value
         
-    @sfcaction
     def precollect(self):
-        for i in self.till(lambda: self.mixer.forbid):
-            yield i
+        yield from self.till(lambda: self.mixer.forbid)
             
-        if not self.sfc_reset:
-            self.log('starting up pre-collecting')
-            for d in self.dosators:
-                d.go = True
-                d.count = 1
-            yield True
+        self.log('запуск предварительного набора')
+        yield
+
+        for d in self.dosators:
+            d.go = True
+            d.count = 1
         
-    @sfcaction
     def main( self):
-        self.log('initial state')
+        self.log('начальное состояние')
         
         for d in self.dosators:
             d.go = False
             d.unload = False
-        yield True
+        yield
             
-        for i in self.until(lambda: self.mixer.go, step = 'initial'):
-            yield i
+        yield from self.until(lambda: self.mixer.go, step = 'initial')
         self.ready = False
-        self.log('waiting for dosators get ready')        
+        self.log('ждем готовности дозаторов')        
         steady = False
         for i in self.until(lambda: steady):
             steady = True
             for d in self.dosators:
                 steady = steady and d.ready
-            yield i
-        self.log('dosators are ready now. preparing...')
+            yield
+        self.log('дозаторы готовы, запуск...')
         for d in self.dosators:
             d.go = True
             d.count = 1
@@ -147,27 +139,22 @@ class Manager(SFC):
                 c.err = 0
 
         batch = 0
-        while batch<self.mixer.count and not self.sfc_reset:
-            self.log(f'starting batch #{batch+1}')
-               
-            self.log('waiting for dosators collecting')
-            for i in self.until( lambda: self.collected.q):
-                yield i
-            self.log('everything collected')
+        while batch<self.mixer.count:
+            self.log(f'начало замеса #{batch+1}')               
+            yield from self.until( lambda: self.collected.q)
+            self.log('все набрано')
             
-            for i in self.till(lambda: self.mixer.breakpoint, step = 'breakpoint'):
-                yield True
+            yield from self.till(lambda: self.mixer.breakpoint, step = 'breakpoint')
                 
             self.mixer.loading = True
             for d in self.dosators:
                 d.go = False
                 d.unload = True
                 
-            if batch+1<self.mixer.count and not self.sfc_reset:
+            if batch+1<self.mixer.count:
                 self.exec(self.precollect( ))
             
-            for i in self.until( lambda: self.loaded.q): # пока не загрузим в смеситель
-                yield i
+            yield from self.until( lambda: self.loaded.q)
 
             batch+=1
             self.mixer.loaded = True
@@ -188,9 +175,9 @@ class Lock():
             
         if key:
             self.q = True
-            self._x = time.time_ns()
+            self._x = POU.NOW
         elif self._x is not None:
-            self.q = (time.time_ns() - self._x)<self.delay
+            self.q = (POU.NOW - self._x)<self.delay
         else:
             self.q = False
             

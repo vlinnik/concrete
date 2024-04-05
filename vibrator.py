@@ -7,19 +7,35 @@ from concrete.dosator import Dosator
 
 from pyplc.sfc import *
 
-# @sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
 class Vibrator(SFC):
-    auto = POU.input(False,persistent=True)
+    """Вибро-обрушитель
+    """
+    auto = POU.var(False,persistent=True)
     q = POU.output(False)
-    @POU.init
-    def __init__(self, auto: bool = False,q: bool = False,containers: list[callable]=None, weight : Weight = None):
+    def __init__(self, auto: bool = False,q: bool = False,containers: list[callable]=None, weight : Weight = None,id:str=None,parent:POU=None):
+        """Вибро-обрушитель.
+
+        Args:
+            auto (bool, optional): Автоматическая работа. Defaults to False.
+            q (bool, optional): Управление включением. Defaults to False.
+            containers (list[callable], optional): Дискретные выходы, при включении которых должно насыпаться. Defaults to None.
+            weight (Weight, optional): Вес, который контролируем. Defaults to None.
+            id (str, optional): _description_. Defaults to None.
+            parent (POU, optional): _description_. Defaults to None.
+        """
         super( ).__init__( )
         self.containers = containers
         self.weight = weight
         self.auto = auto
         self.q = q
 
-    @sfcaction
+    def __pulse(self):
+        self.log('включение вибратора')
+        self.q = True
+        yield from self.pause(500)
+        self.q = False
+        yield from self.pause(3000)
+
     def main(self):
         if self.weight is None or self.containers is None or not self.auto: return
 
@@ -30,16 +46,9 @@ class Vibrator(SFC):
         if not clk: #если нет включения ничего не делаем
             return
         
-        #self.q = True   #после открытия делаем короткое включение
-        
         while clk and self.auto:
             before_m = self.weight.raw
-            self.q = True
-            for i in self.pause(1000):
-                yield i
-            self.q = False
-            for i in self.pause(2000):
-                yield i
+            yield from self.__pulse( )
             after_m = self.weight.raw
             if abs(before_m-after_m)>500:
                 break
@@ -48,13 +57,10 @@ class Vibrator(SFC):
             for c in self.containers:
                 clk = clk or c()
         
-            
-# @sfc(inputs=['auto'],outputs=['q'],persistent=['auto'])
 class UnloadHelper(SFC):
     auto = POU.input(False,persistent=True)
     q = POU.output(False)
-    @POU.init
-    def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None):
+    def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None,id:str=None,parent:POU=None):
         super( ).__init__( )
         self.dosator = dosator
         self.weight = weight
@@ -62,7 +68,12 @@ class UnloadHelper(SFC):
         self.q = q
         self.point = point
 
-    @sfcaction
+    def __pulse(self):
+        self.q = True
+        yield from self.pause(500)
+        self.q = False
+        yield from self.pause(3000)
+
     def main(self):
         if self.weight is None or self.dosator is None or not self.auto: return
 
@@ -72,21 +83,13 @@ class UnloadHelper(SFC):
         while self.auto and self.dosator.out:
             if self.point is not None:
                 while self.weight.m>self.point and self.dosator.out:
-                    yield True
+                    yield 
                 if self.dosator.out:
-                    self.q = True
-                    for i in self.pause(500):
-                        yield i
-                    self.q = False
-                for i in self.till(lambda: self.dosator.out):
-                    yield i
+                    yield from self.__pulse( )
+                yield from self.till(lambda: self.dosator.out)
             else:
                 before_m = self.weight.raw
-                for i in self.pause(3000):
-                    yield i
+                yield from self.pause(3000)
                 after_m = self.weight.raw
                 if abs(before_m-after_m)<500:
-                    self.q = True
-                    for i in self.pause(500):
-                        yield i
-                    self.q = False
+                    yield from self.__pulse( )
