@@ -11,6 +11,6 @@ from .counting import Counter,Expense,RotaryFlowMeter
 from .vodoley import Vodoley
 from .transport import Transport
 
-from .consts import *
+from ._version import version
 
-print(f'\tLoading CONCRETE library {CONCRETE_VERSION}')
+print(f'\tЗагрузка библиотеки CONCRETE {version}')
