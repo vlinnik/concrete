@@ -166,7 +166,6 @@ class Container( SFC ):
             self.log(f'завершено на {self.m:.2f} кг, погрешность={(self.err)/self.sp*100:.1f}%')
         self.take = None
     
-# @sfc(inputs=['sp','go','closed','clk'],outputs=['out'],vars=['busy','e','done','err'],id='flowmeter')
 class FlowMeter(SFC):
     sp = POU.input(0.0)
     go = POU.input(False)
@@ -177,13 +176,12 @@ class FlowMeter(SFC):
     e = POU.var(0.0,persistent=True)
     done=POU.var(0.0)
     err = POU.var(0.0)
-    @POU.init
-    def __init__(self, sp = 0.0, clk=False, go = False, closed=True) -> None:
-        super().__init__( )
+    def __init__(self, sp:float = 0.0, clk:bool=False, go:bool = False, closed:bool=True,out:bool=False, id:str=None,parent:POU=None) -> None:
+        super().__init__( id,parent )
         self.go = go
         self.sp = sp
         self.closed = closed
-        self.out = False
+        self.out = out
         self.ready = True
         self.busy = False
         self.clk = clk

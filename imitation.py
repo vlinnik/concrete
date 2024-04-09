@@ -14,8 +14,8 @@ class iGATE(STL):
         self.pos = 0
         self.open = open
         self.close= close
-        self.opened = opened
-        self.closed = closed
+        self.opened = opened.force if opened is not None else None
+        self.closed = closed.force if closed is not None else None
         self.simple = simple
     def __call__(self, open=None,close=None):
         with self:
@@ -56,9 +56,9 @@ class iWEIGHT(STL):
     unloading =POU.input(False,hidden=True)
     q = POU.output(0,hidden=True)
     @POU.init
-    def __init__(self,speed=10,loading = False,unloading=False,q: int = 0):
+    def __init__(self,speed=10,loading = False,unloading=False,q: int = None):
         super().__init__( )
-        self.q = q
+        self.q = q.force if q is not None else None
         self.loading = loading
         self.unloading = unloading 
         self.speed = speed
@@ -72,16 +72,14 @@ class iWEIGHT(STL):
                 self.q = self.q-self.speed if self.q-self.speed>0 else 0
             return self.q
 
-# @stl(inputs=['open'],outputs=['closed','opened'])
 class iVALVE(STL):
     open = POU.input(False,hidden=True)
     closed=POU.output(False,hidden=True)
     opened=POU.output(False,hidden=True)
-    @POU.init
-    def __init__(self,open=False,closed:bool=True,opened:bool=False):
+    def __init__(self,open=False,closed:bool=None,opened:bool=None):
         super().__init__( )
-        self.closed = closed
-        self.opened = opened
+        self.closed = closed.force if closed is not None else None
+        self.opened = opened.force if opened is not None else None
         self.open = open
     def __call__(self, open=None):
         with self:
