@@ -102,6 +102,8 @@ class Manager(SFC):
         
     def emergency(self,value: bool = True ):
         self.log(f'аварийный режим = {value}')
+        self.collected.clear( )
+        self.loaded.clear( )
         self.sfc_reset = value
         
     def precollect(self):

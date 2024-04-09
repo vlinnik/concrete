@@ -37,7 +37,7 @@ class Factory(POU):
         self.activated = False
         self.over = False
         self.powered = 0
-        self.last_call = time.time_ns( )
+        self.__last_call = POU.NOW_MS
         self.on_mode = [lambda *args: self.log('ручной режим = ',*args)]
         self.on_emergency = [lambda *args: self.log('аварийный режим = ',*args)]
     def trial(self):
@@ -61,8 +61,8 @@ class Factory(POU):
 
     def __call__(self) :
         with self:
-            self.scanTime = int((POU.NOW_MS - self.last_call))
-            self.last_call = POU.NOW_MS
+            self.scanTime = POU.NOW_MS - self.__last_call
+            self.__last_call = POU.NOW_MS
             # self.trial( )
             if self.f_manual( ):
                 for e in self.on_mode:
