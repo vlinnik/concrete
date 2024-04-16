@@ -109,7 +109,7 @@ class Mixer(SFC):
             self.log('ждем закрытия затвора...')
             for _ in self.until(lambda: self.gate.closed, step = 'closing'):
                 self.gate.lock = True
-                self.clock = self.T
+                self.clock = 0
                 yield
             self.gate.lock = False
         
