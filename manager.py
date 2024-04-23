@@ -2,7 +2,7 @@ from pyplc.sfc import *
 from pyplc.stl import *
 from .dosator import Dosator
 from .mixer import Mixer
-from .elevator import Elevator
+from .elevator import ElevatorGeneric
 
 class Readiness():
     """Контроль за группой событий
@@ -27,7 +27,7 @@ class Readiness():
                 y = x.load
             elif isinstance(x,Dosator):
                 y = x.loaded
-            elif isinstance(x,Elevator):
+            elif issubclass(type(x),ElevatorGeneric):
                 y = x.loaded
                 
             self.already[n] = self.already[n] or y
@@ -128,7 +128,7 @@ class Manager(SFC):
         self.ready = False
         self.log('ждем готовности дозаторов')        
         steady = False
-        for i in self.until(lambda: steady):
+        for _ in self.until(lambda: steady):
             steady = True
             for d in self.dosators:
                 steady = steady and d.ready
