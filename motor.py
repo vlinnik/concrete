@@ -24,7 +24,7 @@ class Motor(SFC):
         self.bell=bell
         self.error=Motor.E_NONE
         self.manual = False
-        self.powered = False
+        self.powered = powered
         self._remote = False
         
     def remote(self,on: bool):

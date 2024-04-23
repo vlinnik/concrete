@@ -87,27 +87,31 @@ class iVALVE(STL):
             self.closed = not open
             self.opened = open 
 
-# @stl(inputs=['up','down'],outputs=['below','above','middle'])
 class iELEVATOR(STL):
     up = POU.input(False,hidden=True)
     down=POU.input(False,hidden=True)
     below=POU.output(False,hidden=True)
     above=POU.output(False,hidden=True)
     middle=POU.output(False,hidden=True)
-    @POU.init
-    def __init__(self,up=False,down=False,moveT=200):
-        super( ).__init__( )
+
+    def __init__(self,up:bool=False,down:bool=False,below:Channel=None, above:Channel=None, middle:bool=None, moveT=200,id:str=None,parent:POU=None):
+        super( ).__init__( id,parent )
         self.pos = 0
         self.up = up
         self.down = down
-        self.below = False
-        self.above = False
+        self.below = below.force
+        self.above = above.force
+        self.middle = False if middle is None else middle.force 
         self.moveT = moveT
     def __call__(self, up=None,down=None):
-        if up and self.pos<self.moveT:
-            self.pos+=1
-        if down and self.pos>0:
-            self.pos-=1
-        self.below = self.pos==0
-        self.above = self.pos>=self.moveT
-        self.middle = self.pos==round(self.moveT/2)
+        with self:
+            up = self.overwrite('up',up)
+            down = self.overwrite('down',down)
+            
+            if up and self.pos<self.moveT:
+                self.pos+=1
+            if down and self.pos>0:
+                self.pos-=1
+            self.below = self.pos==0
+            self.above = self.pos>=self.moveT
+            self.middle = self.pos==round(self.moveT/2)

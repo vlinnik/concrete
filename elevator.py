@@ -2,13 +2,238 @@ from pyplc.sfc import *
 from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
 
-from concrete.factory import Factory
 from concrete.container import Container
-from .counting import Flow,Expense
+from concrete.dosator import Dosator
+from concrete.counting import MoveFlow
 
-# @sfc(inputs=['m','above','below','middle'],outputs=['up','down'],vars=['maxT','fault','ack','moveT','unloadT','pauseT','manual','state','ignore'],persistent=['maxT','moveT','pauseT','unloadT'])
+class ElevatorGeneric(SFC):
+    """Логика скипа, загружается из другого дозатора
+    """
+    above = POU.input(False,hidden=True)
+    below = POU.input(False,hidden=True)
+    up = POU.output(False)
+    down= POU.output(False)
+    fault=POU.var(False)
+    ack = POU.var(False)
+    manual = POU.var(False)
+    moveT = POU.var(20,persistent=True)
+    pauseT = POU.var(3,persistent=True)
+    unloadT = POU.var(10,persistent=True)
+    maxT = POU.var(30,persistent=True)
+    loaded = POU.input(False,hidden=True)
+    weight = POU.var(0.0)
+    state=POU.var('ГОТОВ')
+
+    def __init__(self,above:bool=False,below:bool=False,middle:bool =False,up:bool=False, down:bool=False, containers: list[Container]=[], dosator: Dosator=None, id:str=None,parent: POU=None):
+        super().__init__( id,parent)
+        self.ready = False
+        self.above = above
+        self.below = below
+        self.middle = middle
+        self.moveT = 0
+        self.maxT = 30
+        self.pauseT = 3
+        self.unloadT = 10
+        self.manual = False
+        self.__manual = False
+        self.__finalizing = False
+        self.fault = False
+        self.ack = False
+        self.load = False
+        self.loaded = False
+        self.unload = False
+        self.unloaded = False
+        self.unloading = False
+        self.count = 1
+        self.go = False
+        self.up = up
+        self.down = down
+        self.dir = 0        #куда ехать. 0 - стоим 1 - вверх до конца 1 - вниз до конца
+        self.state = 'СВОБОДЕН'
+        self.containers = containers
+        self.dosator = dosator
+        self.s_go = RS(set=lambda: self.go )
+        self.s_loaded = RS(set=lambda: self.loaded)
+        self.s_unload = RS(set=lambda: self.unload)
+        self.subtasks=[self.s_loaded,self.s_unload,self.s_go,self.__always]
+        if len(containers)>0:
+            self.expenses=[ MoveFlow(flow_in=c.q, out=lambda: self.above) for c in containers ]
+        else:
+            self.expenses=[ ]
+
+
+    def emergency(self,value: bool = True):
+        self.log(f'режим аварии = {value}')
+        self.sfc_reset = value
+        self.up = False
+        self.down = False
+        self.s_unload.unset()
+        self.s_loaded.unset()
+
+    def __auto(self,up=None,down=None):
+        if self.manual!=self.__manual and self.manual:
+            self.up = False
+            self.down = False
+            self.dir = 0            
+        elif not self.manual:
+            if self.dir!=0:
+                up = self.dir>0 and not self.above
+                down = self.dir<0 and not self.below
+                if self.below and self.dir<0:
+                    self.dir = 0
+                if self.above and self.dir>0:
+                    self.dir = 0
+            if up is not None:
+                self.up = up and not self.above
+            if down is not None:
+                self.down = down and not self.below
+        self.__manual = self.manual
+
+    def start( self,count = 1 ):
+        self.log(f'запуск {count} циклов')
+        self.s_go(set=True)
+        self.count = count
+    
+    def __fail(self,msg: str):
+        self.log(msg)
+        self.fault = True
+        self.__auto(up=False,down=False)
+        yield from self.until(lambda: self.ack)
+        self.fault = False
+    
+    def move(self,dir: int):
+        if self.dir!=0:
+            return
+        self.dir = dir
+
+    def __always(self):
+        if self.dosator is not None:
+            self.dosator.go = self.go
+            self.loaded = self.dosator.unloaded
+            self.dosator.unload = self.load
+
+        weight = 0.0
+        for e in self.expenses:
+            e( )
+            weight += e.q.m
+        self.weight = weight
+        
+    def collect( self ,batch=0):
+        self.log(f'ждем загрузки #{batch+1}..')
+        self.load = True
+        yield
+        self.load = False
+        self.state = 'ЗАГРУЗКА'
+        yield from self.until( lambda: self.s_loaded.q )
+            
+    def main(self) :
+        self.log('готов')
+
+        if self.__finalizing:
+            self.state = 'ДОМОЙ'
+            for _ in self.until( lambda: self.s_go.q or self.below ,max = self.maxT*1000, step = 'ready&back'):
+                yield
+                self.__auto(up=False,down=not self.below)
+            self.__finalizing = False
+
+        self.state = 'ГОТОВ'            
+        self.ready = True
+        for _ in self.until( lambda: self.s_go.q , step = 'ready'):
+            self.__auto(up=False,down=False)
+            yield
+        
+        self.ready = False
+        self.state = 'НА ПОГРУЗКУ'
+        while not self.below and not self.sfc_reset:
+            for _ in self.until( lambda: self.below,max=self.maxT*1000, step='return'):
+                yield
+                self.__auto(up=False,down=True)
+            self.__auto(up=False,down=False)
+            if not self.below:
+                yield from self.__fail('fault during moving down')
+        batch = 0
+        count = self.count
+        while batch<count:
+            while not self.below:
+                self.log('возврат вниз')
+                self.state = 'ВОЗВРАТ'
+                for _ in self.until(lambda: self.below and not self.above,max=self.maxT*1000,step = 'back'):
+                    yield 
+                    self.__auto(up=False,down=True)
+                if not self.below:
+                    yield from self.__fail('fault during moving down')
+
+            yield from self.pause(self.pauseT*1000,step='pause')
+
+            yield from self.collect(batch)
+            
+            self.log('загружен. пауза и поближе')
+            self.state = f'ПАУЗА {self.pauseT} СЕК'
+            yield from self.pause(self.pauseT*1000, step='pause')
+            
+            if self.moveT>0:
+                self.state = 'ПОБЛИЖЕ...'
+                for _ in self.until(lambda: self.middle,max = self.moveT*1000 , step='closer'):
+                    yield
+                    self.__auto(up=True,down=False)
+                if not self.middle:
+                    self.middle = True
+
+            self.log('ждем сигнала выгрузки')
+            self.state = f'ЖДЕМ ВЫГРУЗКИ'
+            for _ in self.until(self.s_unload, step = 'steady'):
+                self.__auto(up = False,down=False)
+                yield
+
+            self.state = f'НА ВЫГРУЗКУ'
+            self.unload = False
+            self.s_unload.unset()
+            self.log('едем на выгрузку')
+            while not self.above:
+                for _ in self.until(lambda: self.above,max=self.maxT*1000, step = 'go!'):
+                    yield
+                    self.__auto(up=True,down=False)
+                if not self.above:
+                    yield from self.__fail('fault during moving up')
+
+            self.state = f'ВЫГРУЗКА'
+            self.log('выгрузка')
+            if self.middle:
+                self.middle = False
+            self.unloading = True
+            yield from self.pause(self.unloadT*1000, step='unloading')
+
+            self.unloading = False
+
+            if not self.go:
+                count = self.count
+                self.s_go.unset()
+
+            self.loaded = False
+            self.s_loaded.unset()
+            self.unloaded = True
+            yield
+            self.unloaded = False
+            batch+=1
+            self.log(f'замес {batch}/{count} завершен')
+        self.__finalizing = True
+
 class Elevator(SFC):
-    def __init__(self,ignore: float = 30, m: float=0,above=False,below=False,middle =False, containers: list[Container]=None,factory: Factory=None):
+    above = POU.input(False,hidden=True)
+    below = POU.input(False,hidden=True)
+    up = POU.output(False)
+    down= POU.output(False)
+    fault=POU.var(False)
+    ack = POU.var(False)
+    manual = POU.var(False)
+    moveT = POU.var(20,persistent=True)
+    pauseT = POU.var(3,persistent=True)
+    unloadT = POU.var(10,persistent=True)
+    maxT = POU.var(30,persistent=True)
+    state=POU.var('ГОТОВ')
+
+    def __init__(self,ignore: float = 30, m: float=0,above:bool=False,below:bool=False,middle:bool =False,up:bool=False, down:bool=False, containers: list[Container]=[],id:str=None,parent: POU=None):
+        super().__init__( id,parent)
         self.ignore = ignore
         self.compensation = False
         self.m = m
@@ -31,10 +256,9 @@ class Elevator(SFC):
         self.unloading = False
         self.count = 1
         self.go = False
-        self.up = False
-        self.down = False
+        self.up = up
+        self.down = down
         self.dir = 0        #куда ехать. 0 - стоим 1 - вверх до конца 1 - вниз до конца
-        self.factory = factory
         self.state = 'СВОБОДЕН'
         self.containers = containers
         self.f_go = FTRIG(clk=lambda: self.go )
@@ -72,7 +296,7 @@ class Elevator(SFC):
         self.__manual = self.manual
 
     def start( self,count = 1 ):
-        self.log(f'starting {count} cycles')
+        self.log(f'запуск {count} циклов')
         self.f_go(clk=True)
         self.count = count
     
@@ -80,8 +304,7 @@ class Elevator(SFC):
         self.log(msg)
         self.fault = True
         self.__auto(up=False,down=False)
-        for x in self.until(lambda: self.ack):
-            yield x
+        yield from self.until(lambda: self.ack)
         self.fault = False
     
     def move(self,dir: int):
@@ -91,11 +314,10 @@ class Elevator(SFC):
         
     def collect( self ,batch=0):
         self.required = [c for c in filter(lambda c: c.sp>0, self.containers )]
-        self.log(f'wait for required containers get ready..')
-        for x in self.until( lambda: all( [c.ready for c in self.required] ),step='wait.containers' ):
-            yield x
+        self.log(f'ждем когда необходимые бункера освободятся..')
+        yield from self.until( lambda: all( [c.ready for c in self.required] ),step='wait.containers' )
 
-        self.log(f'waiting for get loaded #{batch+1}..')
+        self.log(f'ждем набора замеса #{batch+1}..')
         fract = self.m if self.m>self.ignore else 0
         for c in self.required:
             if fract>c.sp:
@@ -107,57 +329,48 @@ class Elevator(SFC):
                 else:
                     c.err = 0
                 c.collect( )
-                for x in self.until( lambda: c.ready, step='collecting'):
-                    yield x
+                yield from self.until( lambda: c.ready, step='collecting')
 
         self.loaded = True
         yield True
         self.loaded = False
             
-    @sfcaction
     def main(self) :
-        self.log('ready')
-        while self.sfc_reset:
-            self.state = 'СБРОС'
-            self.s_unload.unset()
-            self.s_loaded.unset()
-            yield True
+        self.log('готов')
 
         if self.__finalizing:
             self.state = 'ДОМОЙ'
-            for x in self.until( lambda: self.f_go.q or self.below ,max = self.maxT*1000, step = 'ready&back'):
-                yield x
+            for _ in self.until( lambda: self.f_go.q or self.below ,max = self.maxT*1000, step = 'ready&back'):
+                yield
                 self.__auto(up=False,down=not self.below)
             self.__finalizing = False
                 
         self.state = 'ГОТОВ'            
-        for x in self.until( lambda: self.f_go.q , step = 'ready'):
+        for _ in self.until( lambda: self.f_go.q , step = 'ready'):
             self.__auto(up=False,down=False)
-            yield x
+            yield
         
         self.state = 'НА ПОГРУЗКУ'
         while not self.below and not self.sfc_reset:
-            for x in self.until( lambda: self.below,max=self.maxT*1000, step='return'):
-                yield x
+            for _ in self.until( lambda: self.below,max=self.maxT*1000, step='return'):
+                yield
                 self.__auto(up=False,down=True)
             self.__auto(up=False,down=False)
             if not self.below:
-                for x in self.__fail('fault during moving down'):
-                    yield x
+                yield from self.__fail('fault during moving down')
         batch = 0
         count = self.count
         while batch<count and not self.sfc_reset:
             while not self.below and not self.sfc_reset:
                 self.log('moving down')
                 self.state = 'ВОЗВРАТ'
-                for x in self.until(lambda: self.below and not self.above,max=self.maxT*1000,step = 'back'):
-                    yield x
+                for _ in self.until(lambda: self.below and not self.above,max=self.maxT*1000,step = 'back'):
+                    yield 
                     self.__auto(up=False,down=True)
                 if not self.below:
-                    for x in self.__fail('fault during moving down'):
-                        yield x
-            for x in self.pause(self.pauseT*1000,step='pause'):
-                yield x
+                    yield from self.__fail('fault during moving down')
+
+            yield from self.pause(self.pauseT*1000,step='pause')
 
             self.log('loading')
             self.load = True
@@ -182,29 +395,28 @@ class Elevator(SFC):
 
             self.log('waiting for unload signal')
             self.state = f'ЖДЕМ ВЫГРУЗКИ #{batch+1}'
-            for x in self.until(self.s_unload, step = 'steady'):
+            for _ in self.until(self.s_unload, step = 'steady'):
                 self.__auto(up = False,down=False)
-                yield x
+                yield
 
             self.state = f'НА ВЫГРУЗКУ #{batch+1}'
             self.unload = False
             self.s_unload.unset()
             self.log('moving up')
             while not self.above and not self.sfc_reset:
-                for x in self.until(lambda: self.above,max=self.maxT*1000, step = 'go!'):
-                    yield x
+                for _ in self.until(lambda: self.above,max=self.maxT*1000, step = 'go!'):
+                    yield
                     self.__auto(up=True,down=False)
                 if not self.above:
-                    for x in self.__fail('fault during moving up'):
-                        yield x
+                    yield from self.__fail('fault during moving up')
 
             self.state = f'ВЫГРУЗКА #{batch+1}'
             self.log('unloading')
             if self.middle:
                 self.middle = False
             self.unloading = True
-            for i in self.pause(self.unloadT*1000, step='unloading'):
-                yield i
+            yield from self.pause(self.unloadT*1000, step='unloading')
+
             self.unloading = False
 
             if not self.go:
@@ -212,7 +424,7 @@ class Elevator(SFC):
             self.loaded = False
             self.s_loaded.unset()
             self.unloaded = True
-            yield True
+            yield
             self.unloaded = False
             batch+=1
             self.log(f'batch {batch}/{count} finished')

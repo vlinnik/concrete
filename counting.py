@@ -3,6 +3,8 @@ from pyplc.utils.misc import TOF
 from pyplc.utils.trig import FTRIG,TRIG,RTRIG
 
 class Flow():
+    """Вспомогательный класс для работы с перемещением материалов (расход)
+    """
     def __init__(self):
         self.m = 0
         self.clk = False
@@ -13,7 +15,6 @@ class Flow():
         self.m = m
         self.clk = clk
 
-# @stl(inputs=['flow_in','flow_out','m'],outputs=['e'])
 class Counter(POU):
     flow_in = POU.input(False)
     flow_out= POU.input(False)
@@ -49,7 +50,33 @@ class Counter(POU):
                     self.e += self.m - self.__m
                     self.__m = self.m
 
-# @stl(inputs=['out'],outputs=['e'])
+class MoveFlow(POU):
+    """
+    Перенос накопленного расхода по out. 
+    Применение: например скип после конвейера расходы с конвейера переносит в момент верхнего положения
+    """ 
+    out = POU.input(False)   
+    e = POU.output(0.0)
+    def __init__(self,flow_in: Flow,out: bool = False, id: str=None, parent:POU=None):
+        super().__init__( id,parent)
+        self.out = out
+        self.e = 0.0
+        self.q = Flow( )
+        self.flow_in = flow_in
+        self.f_in = RTRIG( clk =lambda: self.flow_in.clk )
+        self.f_out = FTRIG( clk = lambda: self.out )
+
+    def __call__(self, out = None):
+        with self:
+            self.out = self.overwrite('out',out)
+            if self.f_in( ):    #загрузили
+                self.e += self.flow_in.m
+
+            self.q(not self.out,self.e)
+
+            if self.f_out( ):   #выгрузили
+                self.e = 0.0
+
 class Expense(POU):
     out = POU.input(False)
     e = POU.output(0.0)
@@ -75,7 +102,6 @@ class Expense(POU):
                 self.e = 0.0
             self.q(not self.out,self.e)
 
-#@stl(inputs=['clk','rst','flow_in'],outputs=['e'])
 class RotaryFlowMeter(POU):
     clk = POU.input(False)
     rst = POU.input(False)
