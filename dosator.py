@@ -16,8 +16,9 @@ class Dosator(SFC):
     compensation = POU.var(False)
     leave = POU.var(False)
     ack = POU.var(False)
+    nack= POU.input(False,hidden=True)
     @POU.init
-    def __init__(self,m=0, closed=True,count=1,go=False,loaded=False,unload=False,out=False, unloaded=False,unloadT=0,lock=False,containers = []) -> None:
+    def __init__(self,m=0, closed:bool=True,count:int=1,go:bool=False,loaded:bool=False,unload:bool=False,out:bool=False, unloaded:bool=False,unloadT:int=0,lock:bool=False,nack:bool=False,containers = []) -> None:
         super().__init__( )
         self.count = count
         self.go = go
@@ -37,6 +38,7 @@ class Dosator(SFC):
         self.compensation = False
         self.leave = False
         self.ack = False
+        self.nack= nack    #механизм порядка загрузки
         self.s_go = RS(set = lambda: self.go,id = 's_go')
         self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
         self.s_loaded = RS(set=lambda: self.loaded, id = 's_loaded' )
@@ -140,7 +142,12 @@ class Dosator(SFC):
 
         if len(self.required)>0:
             self.log(f'выгрузка через {self.unloadT} сек')
-            yield from self.pause( self.unloadT*1000 , step='pause.unload' )
+            secs = 0 
+            yield from self.till(lambda: self.nack,step='till.nack')
+            while secs<self.unloadT:
+                yield from self.pause(1000,step='pause.1sec')
+                secs+=1
+                yield
             self.log(f'выгружаем..')
             yield from self.till( lambda: self.m>self.ignore and self.m>rest, step='unloading',n = [self.__auto] )
             yield from self.until( lambda: self.closed,min=3000, step='wait.closed' )
