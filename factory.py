@@ -1,7 +1,6 @@
 from pyplc.pou import POU
 from pyplc.utils.trig import TRIG
-from pyplc.utils.misc import TON
-import time
+from pyplc.utils.misc import TON,BLINK
 
 class Factory(POU):
     CODES = []
@@ -12,6 +11,7 @@ class Factory(POU):
     emergency = POU.var(False)
     powerfail = POU.var(True)
     powerack = POU.var(False)
+    heartbeat= POU.var(False)
     over = POU.var(False)
     scanTime = POU.var(0)
 
@@ -31,6 +31,7 @@ class Factory(POU):
         self.f_emergency = TRIG(clk = lambda: self.emergency )
         self.f_powerack = TON(clk = lambda: self.powerack,pt=2000)
         self.hour = TON(pt=Factory.HOUR)
+        self.__sec= BLINK(enable=True)
         self.moto = 0
         self.used = 0
         self.code = 0
@@ -64,6 +65,7 @@ class Factory(POU):
             self.scanTime = POU.NOW_MS - self.__last_call
             self.__last_call = POU.NOW_MS
             # self.trial( )
+            self.heartbeat = self.__sec( )
             if self.f_manual( ):
                 for e in self.on_mode:
                     e( self.manual )
