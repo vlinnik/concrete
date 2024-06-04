@@ -2,7 +2,6 @@ from pyplc.pou import POU
 from pyplc.sfc import *
 from pyplc.utils.misc import TOF,TON
 
-# @stl(inputs=['ison','lock'],outputs=['out','power'],vars=['pt','manual','active'],persistent = ['pt'],hidden=['ison','out'])
 class Transport(POU):    
     """Управление транспортными конвейерами"""
     ison = POU.input(False,hidden=True)
@@ -12,8 +11,7 @@ class Transport(POU):
     pt = POU.var(5,persistent=True)
     manual = POU.var(False)
     active = POU.var(False)    
-    @POU.init
-    def __init__(self,auto:bool=False,ison:bool=False,pt:int=5,lock: bool = False):
+    def __init__(self,auto:bool=False,ison:bool=False,power:bool=False,out:bool=False,pt:int=5,lock: bool = False,id:str=None,parent:POU=None):
         """Управление транспортным конвейером
 
         Args:
@@ -26,12 +24,13 @@ class Transport(POU):
             out (bool) : если включение удалось повторяет auto
             power (bool) : управление включением конвейера
         """        
+        super().__init__(id,parent)
         self.pt = pt
         self.__auto = False
         self.ison = ison
         self.manual = False
-        self.power = False
-        self.out = False
+        self.power = power
+        self.out = out
         self.active = True
         self.lock = lock
         self.__power = TOF(clk=lambda: self.__auto, pt = pt*1000)
@@ -57,7 +56,6 @@ class Transport(POU):
                 self.power = self.manual
                 self.out = self.__auto 
 
-# @sfc(inputs=['remote','rot','lock'],outputs=['out'],vars=['manual','rotating','active','pt'],hidden=['rot'],persistent=['active','pt'])
 class Gear(SFC):
     """Управление ИМ с датчиком вращения (нория, конвейер)
 
@@ -72,11 +70,10 @@ class Gear(SFC):
     rotating = POU.var(False)
     active = POU.var(False,persistent=True)
     pt = POU.var(1000,persistent=True)
-    @POU.init
-    def __init__(self,remote: bool=False, rot:bool = False, lock:bool = False, ms: int = 2000,pt: int = 0 ) -> None:
-        super().__init__()
+    def __init__(self,remote: bool=False, rot:bool = False, lock:bool = False, out:bool=False, ms: int = 2000,pt: int = 0, id:str=None, parent:POU=None ) -> None:
+        super().__init__(id, parent)
         self.rot = rot
-        self.out = False
+        self.out = out
         self.manual = False
         self.rotating = False
         self.active = False
@@ -95,9 +92,8 @@ class Gear(SFC):
         else:
             self.out = self.manual
 
-    @sfcaction
     def main(self):
-        """Определение налиция вращения двигателя
+        """Определение наличия вращения двигателя
         """
         while True:
             last = self.rot
@@ -108,5 +104,9 @@ class Gear(SFC):
                     self.rotating = True
                     break
                 last = self.rot
-            if last==self.rot:
+            if last==self.rot and self.ms>0:
                 self.rotating = False
+            elif self.ms<=0:
+                self.auto( self.delay( pt = self.pt*1000) )
+                self.rotating = self.rot
+            yield

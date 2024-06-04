@@ -10,6 +10,7 @@ class MSGate(SFC):
         opened (bool): Состояние "затвор открыт"
         closed (bool): Состояние "затвор закрыт"
     """
+    forbid = POU.input(False,hidden=True)
     closed = POU.input(False,hidden=True)
     opened = POU.input(False,hidden=True)
     lock = POU.input(False)
@@ -19,11 +20,12 @@ class MSGate(SFC):
     dr = POU.var(0,persistent=True)
     E_NONE = 0
     E_JAM = -1
-    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False,lock:bool = False, id:str=None,parent:POU=None) -> None:
+    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False,lock:bool = False, forbid: bool=False, id:str=None,parent:POU=None) -> None:
         super().__init__(id,parent)
         self.closed = closed
         self.opened = opened
         self.open = open
+        self.forbid = forbid
         self.unload = False
         self.unloaded = False
         self.unloading = False
@@ -115,6 +117,7 @@ class MSGate(SFC):
 
     def __unload(self,pt=None,move_t=None):
         self.unloading = True
+        yield from self.till(lambda: self.forbid,step='forbidden')
         pt = self.overwrite('pt',pt)*1000
         move_t = self.overwrite('move_t',move_t)*1000
         self.log(f'начинаем выгрузку')
