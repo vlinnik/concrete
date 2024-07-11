@@ -2,13 +2,11 @@ from pyplc.stl import *
 from pyplc.pou import POU
 from pyplc.channel import Channel
 
-# @stl(inputs=['open','close'],outputs=['opened','closed'])
 class iGATE(STL):
     open = POU.input(False,hidden=True)
     close =POU.input(False,hidden=True)
     opened=POU.output(False,hidden=True)
     closed=POU.output(False,hidden=True)
-    @POU.init
     def __init__(self,open=False,close=False,opened:bool=False,closed:bool=True,simple=False):
         super( ).__init__( )
         self.pos = 0
