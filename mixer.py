@@ -129,6 +129,7 @@ class Mixer(SFC):
             if self.loading: self.state=f'ЗАГРУЗКА<sup>{batch+1}/{self.count}</sup>'
             yield from self.pause(1000)
         timer.close( )
+        self.loading = False
         self.loaded = False
         self.f_loaded.unset( )
 
