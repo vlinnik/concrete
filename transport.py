@@ -6,16 +6,17 @@ class Transport(POU):
     """Управление транспортными конвейерами"""
     ison = POU.input(False,hidden=True)
     lock = POU.input(False)
+    hold_on = POU.input(False)
     out = POU.output(False,hidden=True)
     power = POU.output(False,hidden=True)
     pt = POU.var(5,persistent=True)
     manual = POU.var(False)
     active = POU.var(False)    
-    def __init__(self,auto:bool=False,ison:bool=False,power:bool=False,out:bool=False,pt:int=5,lock: bool = False,id:str=None,parent:POU=None):
+    def __init__(self,hold_on:bool=False,ison:bool=False,power:bool=False,out:bool=False,pt:int=5,lock: bool = False,id:str=None,parent:POU=None):
         """Управление транспортным конвейером
 
         Args:
-            auto (bool, optional): запрос на включение извне. Defaults to False.
+            hold_on (bool, optional): Если включили то не выключать пока True. Defaults to False.
             ison (bool, optional): состояние ВКЛЮЧЕНО. Defaults to False. Hidden
             pt (int, optional): задержка отключения в сек. Defaults to 5.
             active (bool): Включена логика работы. Иначе out повторяет auto
@@ -33,6 +34,7 @@ class Transport(POU):
         self.out = out
         self.active = True
         self.lock = lock
+        self.hold_on = hold_on
         self.__power = TOF(clk=lambda: self.__auto, pt = pt*1000)
         self.__startup = TON(clk=lambda: self.ison, pt = 2000 )
 
@@ -50,7 +52,10 @@ class Transport(POU):
         with self:
             pt = self.overwrite('pt',pt)
             if self.active:
-                self.power = (self.__power( pt = pt*1000) or self.manual) and not self.lock
+                if self.power and self.hold_on:
+                    pass
+                else:
+                    self.power = (self.__power( pt = pt*1000) or self.manual) and not self.lock
                 self.out = self.__startup(  ) and self.__auto
             else:
                 self.power = self.manual

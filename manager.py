@@ -1,6 +1,7 @@
 from pyplc.sfc import *
 from pyplc.stl import *
-from .dosator import Dosator
+from pyplc.utils.latch import RS
+from .dosator import Dosator,ManualDosator
 from .mixer import Mixer
 from .elevator import ElevatorGeneric
 
@@ -18,6 +19,9 @@ class Readiness():
         self.already = [False]*len(self.rails)
         self.q = False
         
+    def __str__(self):
+        return str(self.already)
+        
     def __call__(self, rst: bool = False):
         n = 0
         any_true = False
@@ -25,10 +29,12 @@ class Readiness():
             y = False
             if isinstance(x,Mixer):
                 y = x.load
-            elif isinstance(x,Dosator):
+            elif hasattr(x,'loaded'):
                 y = x.loaded
-            elif issubclass(type(x),ElevatorGeneric):
-                y = x.loaded
+            elif isinstance(x,Readiness):
+                y = x.q
+            else:
+                y = True
                 
             self.already[n] = self.already[n] or y
             any_true = any_true or y
@@ -40,13 +46,16 @@ class Readiness():
 
 class Loaded():
     """Контроль за группой событий
-    Событие - это логичиский флаг. Для того чтобы получить выход q=True необходимо чтобы все хоть раз стали True
+    Событие - это логический флаг. Для того чтобы получить выход q=True необходимо чтобы все хоть раз стали True
     После того как q=True флаги событий сбрасываются и работа начинается по новому 
     """
     def __init__(self, rails: list):
         self.rails = rails
         self.already = [False]*len(rails)
         self.q = False
+
+    def __str__(self):
+        return str(self.already)
 
     def clear(self,*_):
         self.already = [False]*len(self.rails)
@@ -96,25 +105,37 @@ class Manager(SFC):
         self.dosators = dosators
         self.mixer = mixer
         self.ready = True
-        self.collected = collected        
+        self.collected = collected
         self.loaded = loaded     
         self.targets = []
+        self.f_collected = RS(set = lambda: collected.q )
+        self.subtasks = [self.f_collected]
         
     def emergency(self,value: bool = True ):
         self.log(f'аварийный режим = {value}')
+        self.ready = True
         self.collected.clear( )
         self.loaded.clear( )
         self.sfc_reset = value
         
     def precollect(self):
-        yield from self.till(lambda: self.mixer.forbid)
-            
-        self.log('запуск предварительного набора')
-        yield
+        while not self.ready:
+            yield from self.until( lambda: self.collected.q )
+            yield from self.till( lambda: self.mixer.forbid )
 
-        for d in self.dosators:
-            d.go = True
-            d.count = 1
+            self.log('запуск предварительного набора')
+            steady = True
+            for _ in self.till(lambda: steady):
+                steady = False
+                for d in self.dosators:
+                    steady = steady or d.go
+                yield
+            self.log('дозаторы могут начать набор')
+            
+            if not self.ready:
+                for d in self.dosators:
+                    d.go = True
+        self.log('преднабор больше не нужен')
         
     def main( self):
         self.log('начальное состояние')
@@ -123,10 +144,11 @@ class Manager(SFC):
             d.go = False
             d.unload = False
         yield
-            
+
+        self.ready = True            
         yield from self.until(lambda: self.mixer.go, step = 'initial')
         self.ready = False
-        self.log('ждем готовности дозаторов')        
+        self.log('ждем готовности дозаторов...')
         steady = False
         for _ in self.until(lambda: steady):
             steady = True
@@ -137,31 +159,49 @@ class Manager(SFC):
         for d in self.dosators:
             d.go = True
             d.count = 1
-            for c in d.containers:
-                c.err = 0
+            if hasattr(d,'containers'):
+                for c in d.containers:
+                    c.err = 0
 
         batch = 0
+        job = self.exec(self.precollect( ))
+
+        if self.mixer in self.collected.rails:
+            collected = self.collected
+        else:
+            collected = Readiness([self.collected,self.mixer])
+            self.subtasks.append(collected)
+        
         while batch<self.mixer.count:
-            self.log(f'начало замеса #{batch+1}')               
-            yield from self.until( lambda: self.collected.q)
-            self.log('все набрано')
+            self.log(f'начало замеса #{batch+1}')
+            yield from self.until( lambda: self.f_collected.q )
+            if batch+1>=self.mixer.count:
+                self.log('преднабор больше не нужен')
+                job.close( )
+                
+            self.log(f'все набрано #{batch+1}')
+            self.f_collected.unset( )
+
+            for d in self.dosators:
+                d.go = False
+
+            yield from self.until( lambda: collected.q )
+                
+            self.log(f'смеситель готов для #{batch+1}')
             
             yield from self.till(lambda: self.mixer.breakpoint, step = 'breakpoint')
                 
             self.mixer.loading = True
             for d in self.dosators:
-                d.go = False
                 d.unload = True
                 
-            if batch+1<self.mixer.count:
-                self.exec(self.precollect( ))
-            
             yield from self.until( lambda: self.loaded.q)
 
             batch+=1
             self.mixer.loaded = True
                     
         self.ready = True
+        self.subtasks.remove(collected)
         
 class Lock():
     """Блокировка с таймером. Условие активации блокировки задается параметром key"""    

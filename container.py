@@ -182,26 +182,38 @@ class FlowMeter(SFC):
         self.sp = sp
         self.closed = closed
         self.out = out
+        self.manual = True
         self.ready = True
         self.busy = False
         self.clk = clk
-        self.complete = False   #pulse after acoplishing collect
+        self.unloaded = False   #pulse after accomplishing collect
         self.f_go = FTRIG(clk = lambda: self.go )
         self.e = 0.0    #maxium posible error
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=2000 )
-        self.subtasks = [self.afterOut]
         self.__counter = None
         self.q = Flow( )
+        self.subtasks = [self.afterOut, self.__counting]
+        self._q = 0.0
 
-        self.subtasks = [self.__counting]
+    def switch_mode(self,manual: bool):
+        self.log(f'ручной режим = {manual}')
+        self.manual = manual
+        self.out = False
+        
+    def emergency(self,value: bool = True ):
+        self.log(f'аварийный режим = {value}')
+        self.out = False
+        self.sfc_reset = value
 
     def __counting(self):
         if self.__counter is None:
             return
 
-        self.q( self.__counter.q.clk,self.__counter.q.m )
+        self.q( not self.__counter.q.clk, self.__counter.e - self._q )
+        if not self.__counter.q.clk:
+            self._q = self.done
         self.__counter()
         self.done=self.__counter.e
     
@@ -213,9 +225,9 @@ class FlowMeter(SFC):
             self.out = out
 
     def install_counter(self,flow_out: callable = None):
-        self.__counter = RotaryFlowMeter(clk=lambda: self.clk ,flow_in = self.afterOut.q ,rst = flow_out )
+        self.__counter = RotaryFlowMeter(clk=lambda: self.clk ,flow_in = lambda: self.afterOut.q ,rst = flow_out )
         #self.q = self.__counter.q
-       
+
     def collect(self,sp=None):
         if sp:
             self.sp = sp
@@ -224,12 +236,9 @@ class FlowMeter(SFC):
         self.ready = False
         self.f_go( clk = True )
         
-    @sfcaction
     def main(self) :
-        self.log(f'ready')
+        self.log(f'готов')
         self.busy = False
-        while self.sfc_reset:
-             yield True
         for x in self.until( self.f_go ):
             self.busy = False
             self.ready= True
@@ -237,17 +246,17 @@ class FlowMeter(SFC):
         self.ready= False
         self.busy = True
         from_m = self.done
-        self.log(f'collecting from {from_m} up to {from_m+self.sp}')
+        self.log(f'набор {from_m} до {from_m+self.sp}')
         for x in  self.till( lambda: self.done<from_m + self.sp ):
             self.__auto( out = True)
             yield x
         for x in self.until( lambda: self.closed,min=2 ):
             self.__auto( out = False )
             yield x
-        self.log(f'collecting complete at {self.done}')
-        self.complete = True
+        self.log(f'набор закончен, итог: {self.done}')
+        self.unloaded = True
         yield True
-        self.complete = False
+        self.unloaded = False
 
 class Accelerator():
     def __init__(self, outs: list[callable], sts: list[callable] = [],turbo = True, best:int = None ):
