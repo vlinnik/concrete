@@ -167,7 +167,7 @@ class Container( SFC ):
         self.take = None
     
 class FlowMeter(SFC):
-    sp = POU.input(0.0)
+    sp = POU.var(0.0)
     go = POU.input(False)
     closed = POU.input(False)
     clk = POU.input(False)
@@ -176,6 +176,7 @@ class FlowMeter(SFC):
     e = POU.var(0.0,persistent=True)
     done=POU.var(0.0)
     err = POU.var(0.0)
+    man = POU.var(False)
     def __init__(self, sp:float = 0.0, clk:bool=False, go:bool = False, closed:bool=True,out:bool=False, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.go = go
@@ -187,7 +188,7 @@ class FlowMeter(SFC):
         self.busy = False
         self.clk = clk
         self.unloaded = False   #pulse after accomplishing collect
-        self.f_go = FTRIG(clk = lambda: self.go )
+        self.f_go = FTRIG(clk = lambda: self.go or self.man )
         self.e = 0.0    #maxium posible error
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
@@ -236,6 +237,17 @@ class FlowMeter(SFC):
         self.ready = False
         self.f_go( clk = True )
         
+    def progress(self):
+        from_m = self.done
+        self.log(f'набор {from_m} до {from_m+self.sp}')
+        for x in  self.till( lambda: self.done<from_m + self.sp ):
+            self.__auto( out = True )
+            yield x
+        for x in self.until( lambda: self.closed,min=2 ):
+            self.__auto( out = False )
+            yield x
+        self.log(f'набор закончен, итог: {self.done}')
+        
     def main(self) :
         self.log(f'готов')
         self.busy = False
@@ -245,18 +257,10 @@ class FlowMeter(SFC):
             yield x
         self.ready= False
         self.busy = True
-        from_m = self.done
-        self.log(f'набор {from_m} до {from_m+self.sp}')
-        for x in  self.till( lambda: self.done<from_m + self.sp ):
-            self.__auto( out = True)
-            yield x
-        for x in self.until( lambda: self.closed,min=2 ):
-            self.__auto( out = False )
-            yield x
-        self.log(f'набор закончен, итог: {self.done}')
+        yield from self.progress( )
         self.unloaded = True
         yield True
-        self.unloaded = False
+        self.unloaded = False        
 
 class Accelerator():
     def __init__(self, outs: list[callable], sts: list[callable] = [],turbo = True, best:int = None ):
