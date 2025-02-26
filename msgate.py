@@ -195,7 +195,7 @@ class MPGate(MSGate):
     """Затвор смесителя гидравлический. Поддерживает режим выгрузки шагами: открыть-постоять-открыть еще...
     """
     close = POU.output(False)
-    middle_t = POU.var(0,persistent=True)   #< время остановки после шага
+    middle_t = POU.var(int(1000),persistent=True)   #< время остановки после шага
     
     def __init__(self, closed:bool = True, opened:bool=False, open:bool = False, close:bool = False, lock:bool = False, forbid: bool=False, id:str=None,parent:POU=None) -> None:
         super().__init__( closed=closed,opened=opened,open=open,lock=lock,forbid=forbid,id=id,parent=parent)
