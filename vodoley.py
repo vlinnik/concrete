@@ -60,12 +60,12 @@ class Vodoley(FlowMeter):
                 self.state = 'ГРУБО'
                 beginAt = self.humidity
                 beginQ = self.done
-                self.sp = self.w0
+                self.sp = self.w0*self.speed/100
                 while self.humidity<self.hum_sp-self.precise:
                     yield from self.pulse(lambda: self.t0)
                 
                 self.state = 'ТОЧНО'
-                self.sp = self.w1
+                self.sp = self.w1*self.speed/100
                 while self.humidity<self.hum_sp:
                     yield from self.pulse(lambda: self.t1)
                     

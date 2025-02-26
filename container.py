@@ -1,6 +1,6 @@
 from pyplc.sfc import *
 from pyplc.pou import POU
-from pyplc.utils.trig import FTRIG
+from pyplc.utils.trig import FTRIG,TRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter,Flow, RotaryFlowMeter
 
@@ -226,7 +226,7 @@ class FlowMeter(SFC):
             self.out = out
 
     def install_counter(self,flow_out: callable = None):
-        self.__counter = RotaryFlowMeter(clk=lambda: self.clk ,flow_in = lambda: self.afterOut.q ,rst = flow_out )
+        self.__counter = RotaryFlowMeter(clk=TRIG(clk=lambda: self.clk) ,flow_in = lambda: self.afterOut.q ,rst = flow_out )
         #self.q = self.__counter.q
 
     def collect(self,sp=None):
