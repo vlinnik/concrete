@@ -113,3 +113,30 @@ class iELEVATOR(STL):
             self.below = self.pos==0
             self.above = self.pos>=self.moveT
             self.middle = self.pos==round(self.moveT/2)
+
+class iROTARYFLOW(STL):
+    """Имитация роторного расходомера. Имитирует импульсы(clk) и счетчик импульсов(q)
+    """
+    loading = POU.input(False,hidden=True)
+    q = POU.output(0,hidden=True)
+    clk = POU.output(False,hidden=True)
+    
+    def __init__(self, limit=255, speed=10, loading:bool = False,q: int = 0,clk: bool = False ,id:str = None, parent: POU = None):
+        super().__init__( id,parent )
+        self.q = q.force if q is not None else None
+        self.clk = clk.force if clk is not None else None
+        self.loading = loading
+        self.limit = limit
+        self.speed = speed
+        self._skip = 0
+        
+    def __call__(self):
+        with self:
+            if self.loading:
+                self._skip = (self._skip + 1) % self.speed
+                if self._skip==0:
+                    self.clk = True
+                    self.q = self.q+1 if self.q<self.limit else 0
+                else:
+                    self.clk = False
+            return self.q

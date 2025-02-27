@@ -62,7 +62,7 @@ class UnloadHelper(SFC):
     q = POU.output(False)
     ignore_dm = POU.var(False,persistent=True)
     def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None,id:str=None,parent:POU=None):
-        super( ).__init__( )
+        super( ).__init__( id=id, parent=parent)
         self.dosator = dosator
         self.weight = weight
         self.auto = auto

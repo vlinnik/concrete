@@ -107,9 +107,10 @@ class RotaryFlowMeter(POU):
     rst = POU.input(False)
     flow_in = POU.input(True)
     e = POU.output(0.0)
-    @POU.init
-    def __init__(self,weight:float = 1.0,clk:bool=False,rst:bool=False,flow_in:bool=True):
-        super().__init__( )
+
+    def __init__(self,weight:float = 1.0,clk:bool=False,rst:bool=False,flow_in:bool=True,id:str = None,parent: POU = None):
+        super().__init__( id,parent )
+        self.__e = 0.0
         self.e = 0.0
         self.weight = weight
         self.clk = clk
@@ -118,12 +119,14 @@ class RotaryFlowMeter(POU):
         self.q = Flow( )
         self.f_in = FTRIG( clk =lambda: self.clk )
         self.f_out = FTRIG( clk=lambda: self.rst )
+        
     def clear(self):
-        self.e = 0
+        self.e = 0.0
 
-    def __call__(self) :
-        if self.f_in() and self.flow_in:
-            self.e+=self.weight
-        self.q(self.flow_in,self.e)
-        if self.f_out():
-            self.e = 0
+    def __call__(self):
+        with self:
+            if self.f_in() and self.flow_in:
+                self.e+=self.weight
+            self.q(self.flow_in,self.e)
+            if self.f_out():
+                self.e = 0
