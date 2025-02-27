@@ -60,6 +60,7 @@ class Vibrator(SFC):
 class UnloadHelper(SFC):
     auto = POU.input(False,persistent=True)
     q = POU.output(False)
+    ignore_dm = POU.var(False,persistent=True)
     def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None,id:str=None,parent:POU=None):
         super( ).__init__( )
         self.dosator = dosator
@@ -91,5 +92,5 @@ class UnloadHelper(SFC):
                 before_m = self.weight.raw
                 yield from self.pause(3000)
                 after_m = self.weight.raw
-                if abs(before_m-after_m)<500:
+                if abs(before_m-after_m)<500 or self.ignore_dm:
                     yield from self.__pulse( )
