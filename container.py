@@ -171,22 +171,25 @@ class FlowMeter(SFC):
     go = POU.input(False)
     closed = POU.input(False)
     clk = POU.input(False)
+    cnt = POU.input(int(0))     #счетчик импульсов
     out = POU.output(False)
     busy = POU.var(False)
     e = POU.var(0.0,persistent=True)
     done=POU.var(0.0)
     err = POU.var(0.0)
     man = POU.var(False)
-    def __init__(self, sp:float = 0.0, clk:bool=False, go:bool = False, closed:bool=True,out:bool=False, id:str=None,parent:POU=None) -> None:
+    def __init__(self, clk:bool=False,go: bool = None, closed:bool=None,out:bool=None,cnt:int = None,impulseWeight:float = 1.0, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
+        self.sp = 0.0
         self.go = go
-        self.sp = sp
         self.closed = closed
         self.out = out
         self.manual = True
         self.ready = True
         self.busy = False
         self.clk = clk
+        self.cnt = cnt
+        self.impulseWeight = impulseWeight
         self.unloaded = False   #pulse after accomplishing collect
         self.f_go = FTRIG(clk = lambda: self.go or self.man )
         self.e = 0.0    #maxium posible error
@@ -206,6 +209,7 @@ class FlowMeter(SFC):
     def emergency(self,value: bool = True ):
         self.log(f'аварийный режим = {value}')
         self.out = False
+        self.err = 0
         self.sfc_reset = value
 
     def __counting(self):
@@ -226,8 +230,7 @@ class FlowMeter(SFC):
             self.out = out
 
     def install_counter(self,flow_out: callable = None):
-        self.__counter = RotaryFlowMeter(clk=TRIG(clk=lambda: self.clk) ,flow_in = lambda: self.afterOut.q ,rst = flow_out )
-        #self.q = self.__counter.q
+        self.__counter = RotaryFlowMeter(weight=self.impulseWeight,clk=TRIG(clk=lambda: self.clk), cnt = lambda: self.cnt, flow_in = lambda: self.afterOut.q ,rst = flow_out )
 
     def collect(self,sp=None):
         if sp:
@@ -240,12 +243,13 @@ class FlowMeter(SFC):
     def progress(self):
         from_m = self.done
         self.log(f'набор {from_m} до {from_m+self.sp}')
-        for x in  self.till( lambda: self.done<from_m + self.sp ):
+        for x in  self.till( lambda: self.done<from_m + self.sp-self.err ):
             self.__auto( out = True )
             yield x
         for x in self.until( lambda: self.closed,min=2 ):
             self.__auto( out = False )
             yield x
+        self.err = self.done - self.sp + self.err
         self.log(f'набор закончен, итог: {self.done}')
         
     def main(self) :

@@ -121,7 +121,7 @@ class iROTARYFLOW(STL):
     q = POU.output(0,hidden=True)
     clk = POU.output(False,hidden=True)
     
-    def __init__(self, limit=255, speed=10, loading:bool = False,q: int = 0,clk: bool = False ,id:str = None, parent: POU = None):
+    def __init__(self, limit=255, speed=10, loading:bool = False,q: int = None,clk: bool = None ,id:str = None, parent: POU = None):
         super().__init__( id,parent )
         self.q = q.force if q is not None else None
         self.clk = clk.force if clk is not None else None
@@ -136,7 +136,6 @@ class iROTARYFLOW(STL):
                 self._skip = (self._skip + 1) % self.speed
                 if self._skip==0:
                     self.clk = True
-                    self.q = self.q+1 if self.q<self.limit else 0
                 else:
                     self.clk = False
-            return self.q
+                self.q = self.q+1 if self.q is not None and self.q<self.limit else 0

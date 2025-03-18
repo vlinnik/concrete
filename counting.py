@@ -103,16 +103,19 @@ class Expense(POU):
             self.q(not self.out,self.e)
 
 class RotaryFlowMeter(POU):
-    clk = POU.input(False)
+    cnt = POU.input(int(0)) #счетчик импульсов
+    clk = POU.input(False)  #дискретный вход от импульса
     rst = POU.input(False)
     flow_in = POU.input(True)
     e = POU.output(0.0)
 
-    def __init__(self,weight:float = 1.0,clk:bool=False,rst:bool=False,flow_in:bool=True,id:str = None,parent: POU = None):
+    def __init__(self,weight:float = 1.0,clk:bool=False,cnt:int = None, rst:bool=False,flow_in:bool=True,id:str = None,parent: POU = None):
         super().__init__( id,parent )
         self.__e = 0.0
         self.e = 0.0
         self.weight = weight
+        self.cnt = cnt
+        self._cnt = self.cnt    #параметр cnt может быть callable|None|int, а self.cnt - int или None
         self.clk = clk
         self.rst = rst
         self.flow_in = flow_in
@@ -125,6 +128,10 @@ class RotaryFlowMeter(POU):
 
     def __call__(self):
         with self:
+            if self.flow_in and self.cnt!=self._cnt:
+                #счетчик self.cnt = [0;255], учитываем переполнение
+                self.e+= ((self.cnt - self._cnt) if self.cnt>=self._cnt else (self.cnt + 256-self._cnt))*self.weight
+                self._cnt = self.cnt
             if self.f_in() and self.flow_in:
                 self.e+=self.weight
             self.q(self.flow_in,self.e)

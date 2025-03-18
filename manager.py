@@ -100,7 +100,18 @@ class Multiplexor(POU):
 class Manager(SFC):
     """Управление приготовлением бетона 
     """
-    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[],id:str=None,parent:POU=None):
+    def __init__(self, collected: Readiness, loaded: Loaded, mixer: Mixer, dosators: list[Dosator]=[],loadOrder: 'Callable[[], Generator]' = None ,id:str=None,parent:POU=None):
+        """Управление приготовлением бетона на 1 смесителе
+
+        Args:
+            collected (Readiness): Триггер "все набрано"
+            loaded (Loaded): Триггер "все загружено"
+            mixer (Mixer): Смеситель, которым управляем
+            dosators (list[Dosator], optional): Список задействованных дозаторов. Ждем .ready, ставим .go и .unload (если loadOrder = None) [].
+            loadOrder (Callable[[], Generator], optional): функция-генератор, пользовательский вариант загрузки в смеситель. Defaults to None.
+            id (str, optional): обычно не надо ставить. Defaults to None.
+            parent (POU, optional): для future needs. Defaults to None.
+        """
         super( ).__init__( id,parent )
         self.dosators = dosators
         self.mixer = mixer
@@ -108,6 +119,7 @@ class Manager(SFC):
         self.collected = collected
         self.loaded = loaded     
         self.targets = []
+        self.order = loadOrder
         self.f_collected = RS(set = lambda: collected.q )
         self.subtasks = [self.f_collected]
         
@@ -192,8 +204,11 @@ class Manager(SFC):
             yield from self.till(lambda: self.mixer.breakpoint, step = 'breakpoint')
                 
             self.mixer.loading = True
-            for d in self.dosators:
-                d.unload = True
+            if not self.order:
+                for d in self.dosators:
+                    d.unload = True
+            else:
+                yield from self.order()
                 
             yield from self.until( lambda: self.loaded.q)
 

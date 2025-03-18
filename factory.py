@@ -16,9 +16,9 @@ class Factory(POU):
     scanTime = POU.var(0)
 
     activated = POU.var(False,persistent=True)
-    moto = POU.var(0,persistent=True)
-    used = POU.var(0,persistent=True)
-    powered = POU.var(0,persistent=True)
+    moto = POU.var(int(0),persistent=True)
+    used = POU.var(int(0),persistent=True)
+    powered = POU.var(int(0),persistent=True)
 
     def __init__(self,id:str = None,parent:POU=None) -> None:
         super().__init__( id,parent )
