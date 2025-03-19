@@ -43,6 +43,9 @@ class Vodoley(FlowMeter):
                 
     def progress(self):
         if self.mode==Vodoley.MODE_Q:
+            self.state = 'ПРЕД ПЕРЕМЕШИВАНИЕ'
+            self.log('предварительное перемешивание')
+            yield from self.timer(lambda: self.preT)
             self.state = 'РАСХОД'
             yield from super().progress()
         elif self.humidity<self.hum_sp:
