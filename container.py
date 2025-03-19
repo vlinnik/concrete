@@ -246,9 +246,8 @@ class FlowMeter(SFC):
         for x in  self.till( lambda: self.done<from_m + self.sp-self.err ):
             self.__auto( out = True )
             yield x
-        for x in self.until( lambda: self.closed,min=2 ):
-            self.__auto( out = False )
-            yield x
+        self.__auto( out = False )
+        if self.closed is not None:yield from self.until( lambda: self.closed,min=2 )
         self.err = self.done - self.sp + self.err
         self.log(f'набор закончен, итог: {self.done}')
         
