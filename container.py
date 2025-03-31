@@ -48,7 +48,7 @@ class Container( SFC ):
         self.take = None
         self.lock = lock
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out or not self.closed, pt=3000 )
-        self.subtasks = [self.__counting,self.__lock,self.afterOut]
+        self.subtasks = (self.__counting,self.__lock,self.afterOut)
     
     def switch_mode(self,manual: bool):
         self.log(f'ручной режим = {manual}')
@@ -340,3 +340,117 @@ class Accelerator():
                 for o in self.outs:
                     o(False)
                 self.cur = self.nxt if self.best is None else self.best
+                
+class Retarder(SFC):
+    """Замедлитель-объединитель нескольких затворов в один. 
+    
+    Для случаев, когда на конвейере несколько бункеров с одним компонентом, и дозировать надо всеми затворами поочереди.
+    Например 3 бункера песка, доза 1400 а под один затвор помещается только 500 кг. Используя Retarder при открывании 2
+    бункера автоматически будут открываться по очереди 2-3-1-2-3 (используя ограничение по времени maxT мсек и dm кг)
+    """
+    m = POU.input(0.0,hidden=True)
+    dm= POU.var(500.0,persistent=True)
+    en= POU.var(True,persistent=True)
+    
+    def __init__(self, m: float, outs: tuple[callable], sts: tuple[callable] = (),turbo = True, best:int = None , id: str=None, parent: POU = None):
+        """Создать замедлитель набора из группы затворов
+
+        Args:
+            outs (list[callable]): Управляющие сигналы затворами (etc FILLER_OPEN_1)
+            sts (list[callable], optional): Обратная связь по затворам (etc FILLER_CLOSED_1). Defaults to [].
+            turbo (bool, optional): Режим быстрого набора - из всех затворов сразу. Defaults to True.
+            best (int, optional): Номер затвора, которым надо добирать. Defaults to None.
+        """        
+        super().__init__(id=id,parent=parent)
+        self.cnt = len(outs)  #сколько доступно затворов
+        self.outs = outs      #все затворы в помощь  
+        self.sts = sts        #обратная связь по затворам
+        self.cur = None       #номер затвора что сейчас открывается/будет открываться
+        self._outs=[False]*self.cnt #что хочет выдать пользователь
+        self._sts =[False]*self.cnt #какое состояние датчиков положения подсунем пользователю
+        self._lock=[False]*self.cnt #блокировка затвора
+        self.turbo = turbo
+        self.best = best
+        self.m = m
+        self.maxT = 5000
+
+        for i in range(1,self.cnt+1):
+            self.export(f'disable_{i}',False)
+    
+    def out(self,index: int):
+        """Получить функцию управления затвором по номеру
+
+        Args:
+            index (int): номер затвора
+        """
+        def __out__(value: bool):
+            self._outs[index]=value
+        return __out__
+        
+    def closed(self,index: int):
+        """получить функцию получения состояния затвора
+
+        Args:
+            index (int): номер затвора
+        """
+        def __closed__()->bool:
+            return self._sts[index]
+        return __closed__
+    
+    def lock(self,index: int):
+        return self._lock[index]
+    
+    def __sts(self,on:bool=False):
+        if self.cur is not None and self.en:
+            for i in range(self.cnt):
+                self._sts[i]=True
+            if self.sts:
+                for _ in self.sts:
+                    self._sts[self.cur] = self._sts[self.cur] and _()
+            else:
+                for _ in self._outs:
+                    self._sts[self.cur] = self._sts[self.cur] and _
+        else:
+            for i in range(self.cnt):
+                if self.sts:
+                    self._sts[i]=self.sts[i]( )
+                else:
+                    self._sts[i]=not self._outs[i]
+    
+    def main(self):
+        if not self.en:
+            for i in range(self.cnt):
+                if self.sts:
+                    self._sts[i]=self.sts[i]( )
+                else:
+                    self._sts[i]=not self._outs[i]
+                self.outs[i](self._outs[i])
+            for i in range(self.cnt):
+                self._lock[i]=False
+                for j in range(self.cnt):
+                    if i!=j: 
+                        self._lock[i] = self._lock[i] or not self._sts[j]
+        else:
+            for i in range(self.cnt):
+                if self._outs[i]:
+                    for j in range(self.cnt):
+                        if i!=j:
+                            self._lock[j]=True
+
+                    j = i
+                    self.cur = i
+                    while self._outs[i]:
+                        till = self.m + self.dm
+                        yield from self.till( lambda: self.m<till and self._outs[i],max=self.maxT,n=[self.outs[j],self.__sts])
+                                                
+                        j=(j+1) % self.cnt
+                        while getattr(self,f'disable_{j+1}'):
+                            j=(j+1) % self.cnt
+                            yield
+                        
+                    for j in range(self.cnt):
+                        self._lock[j]=False
+                    
+                    break
+                else:
+                    self.__sts()

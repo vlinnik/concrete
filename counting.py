@@ -15,40 +15,35 @@ class Flow():
         self.m = m
         self.clk = clk
 
-class Counter(POU):
-    flow_in = POU.input(False)
-    flow_out= POU.input(False)
-    m = POU.input(0.0)
-    e = POU.output(0.0)
-    @POU.init
-    def __init__(self,m=0.0, flow_in = False, flow_out = False) -> None:
-        super().__init__( )
+class Counter():
+    def __init__(self,m: callable , flow_in: callable , flow_out: callable) -> None:
         self.flow_in = flow_in
         self.flow_out = flow_out 
+        self.__in = None
+        self.__out= None
         self.__m = None
         self.m = m
-        self.e = 0.0
+        self.e = 0.0 # результат учета расхода
         self.q = Flow( )
-        # self.filter = TOF(clk = lambda: self.flow_in,pt=1000 )
-        self.f_out = FTRIG(clk = lambda: self.flow_out )
-        self.trig = TRIG(clk = lambda: self.flow_in)
 
-    def __call__(self, m = None) :
-        with self:
-            self.m = self.overwrite('m',m)
-            
-            # self.filter( )
-            self.f_out( )
-            self.q(self.flow_out,self.e )
-            if self.f_out.q:
-                self.e = 0 
+    def __call__(self, m: float = None) :
+        m = m if m is not None else self.m()
+        
+        _out = self.flow_out( )
+        self.q(_out,self.e )
+        if _out==False and self.__out==True:
+            self.e = 0 
 
-            if self.trig( ):
-                if self.flow_in or self.__m is None:
-                    self.__m = self.m
-                else:
-                    self.e += self.m - self.__m
-                    self.__m = self.m
+        _in = self.flow_in( )
+        if _in!=self.__in and self.__in is not None:
+            if _in or self.__m is None:
+                self.__m = m
+            else:
+                self.e += m - self.__m
+                self.__m = m
+                
+        self.__in = _in
+        self.__out= _out
 
 class MoveFlow(POU):
     """
@@ -77,30 +72,25 @@ class MoveFlow(POU):
             if self.f_out( ):   #выгрузили
                 self.e = 0.0
 
-class Expense(POU):
-    out = POU.input(False)
-    e = POU.output(0.0)
-    @POU.init
-    def __init__(self,flow_in: Flow,out:bool=False):
-        super().__init__( )
+class Expense():
+    def __init__(self,flow_in: Flow,out:callable):
         self.out = out
-        self.e = 0.0
+        self.e = 0.0        #результат вычисления расхода
         self.q = Flow( )
         self.flow_in = flow_in
-        self.f_in = RTRIG( clk =lambda: self.flow_in.clk )
-        self.f_out = FTRIG( clk = lambda: self.out )
+        self._in = None
+        self._out= None 
 
     def __call__(self, out:bool = None):
-        with self:
-            self.out = self.overwrite('out',out)
-            self.f_in( )
-            if self.f_in.q:
-                self.e += self.flow_in.m
+        out = out if out is not None else self.out()
+        if self._in==False and self.flow_in.clk==True:
+            self.e += self.flow_in.m
+        self._in = self.flow_in.clk
 
-            self.f_out( )
-            if self.f_out.q:
-                self.e = 0.0
-            self.q(not self.out,self.e)
+        if self._out==True and out==False:
+            self.e = 0.0
+        self._out = out
+        self.q(not out,self.e)
 
 class RotaryFlowMeter(POU):
     cnt = POU.input(int(0)) #счетчик импульсов

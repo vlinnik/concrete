@@ -166,7 +166,7 @@ class Dosator(SFC):
         self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
         self.s_loaded = RS(set=lambda: self.loaded, id = 's_loaded' )
         self.t_ack = FTRIG(clk = lambda: self.ack )
-        self.subtasks = [ self.always ]
+        self.subtasks = ( self.always, )
         for c in self.containers:
             c.install_counter( flow_out = lambda: self.out ,m = lambda: self.m )
             

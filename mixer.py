@@ -53,13 +53,15 @@ class Mixer(SFC):
         self.qreset = False
         self.use_ack = use_ack
         if flows is not None:
-            self.expenses=[ Expense( flow_in = f ,out = lambda: self.qreset ) for f in flows ]
-            for i in range(0,len(flows)):
+            self.expenses=tuple( Expense( flow_in = f ,out = lambda: self.qreset ) for f in flows )
+            i = 0
+            for _ in self.expenses:
                 self.export(f'expense_{i}',0.0)
+                i+=1
         else:
-            self.expenses=[ ]
+            self.expenses=( )
 
-        self.subtasks = [self.f_loaded,self.__counting,self.__always,self.f_go,self.f_ack,self.f_nack]
+        self.subtasks = (self.f_loaded,self.__counting,self.__always,self.f_go,self.f_ack,self.f_nack)
     
     def timer(self,preset: int, up: bool = True):
         """Отсчет времени и обновление свойства clock
