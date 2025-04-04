@@ -30,6 +30,7 @@ class ManualDosator(SFC):
         self.manual = True
         self.ready = True
         self.count = 1
+        self.delay = 2000
         self.s_go = RS(set = lambda: self.go,id = 's_go')
         self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
         self.s_loaded = RS(set=lambda: self.loaded, id = 's_loaded' )
@@ -88,6 +89,7 @@ class ManualDosator(SFC):
         yield from self.until( lambda: self.s_unload.q, step='wait.unload')
         self.unload = False
         self.unloaded = False
+        yield from self.pause(self.delay,step='delay')
 
         self.log(f'выгружаем {self.unloadT} сек')
         secs = 0 
