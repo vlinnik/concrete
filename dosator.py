@@ -369,20 +369,21 @@ class DescendingDosator(Dosator):
         
     def cycle( self,batch:int=0):
         self.required = tuple(c for c in filter(lambda c: c.sp>0, self.containers ))
-        yield from self.until( lambda: all( tuple(c.ready for c in self.required) ),step='wait.containers' )
-        
-        required_weight = sum( (c.sp for c in self.required) )
+        required_weight = 0
+        if len(self.required)>0: 
+            yield from self.until( lambda: all( tuple(c.ready for c in self.required) ),step='wait.containers' ) 
+            required_weight = sum( (c.sp for c in self.required) )
 
-        if self.m<required_weight or self.m<self.low:
-            self.log(f'в дозаторе недостаточно для цикла дозирования. пополняем...')
-            for _ in self.till(lambda: self.m<self.full):
-                if not self.manual:
-                    for c in self.required:
-                        c.out = True
-                yield _
-            for c in self.required:
-                c.out = False
-            yield from self.wait(3)
+            if self.m<required_weight or self.m<self.low:
+                self.log(f'в дозаторе недостаточно для цикла дозирования. пополняем...')
+                for _ in self.till(lambda: self.m<self.full):
+                    if not self.manual:
+                        for c in self.required:
+                            c.out = True
+                    yield _
+                for c in self.required:
+                    c.out = False
+                yield from self.wait(3)
 
         self.loaded = True
         yield 
