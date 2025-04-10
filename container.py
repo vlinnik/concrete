@@ -177,7 +177,9 @@ class FlowMeter(SFC):
     done=POU.var(0.0)
     err = POU.var(0.0)
     man = POU.var(False)
-    def __init__(self, clk:bool=False,go: bool = None, closed:bool=None,out:bool=None,cnt:int = None,impulseWeight:float = 1.0,max_sp:float = 10, id:str=None,parent:POU=None) -> None:
+    imp_kg = POU.var(0,persistent=True)
+    ff = POU.var(0,persistent=True)
+    def __init__(self, clk:bool=False,go: bool = None, closed:bool=None,out:bool=None,cnt:int = None,impulseWeight:float = None,max_sp:float = 10, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.sp = 0.0
         self.go = go
@@ -188,7 +190,7 @@ class FlowMeter(SFC):
         self.busy = False
         self.clk = clk
         self.cnt = cnt
-        self.impulseWeight = impulseWeight
+        self.impulseWeight = impulseWeight if impulseWeight is not None else 0.0035
         self.loaded = False
         self.unloaded = False   #pulse after accomplishing collect
         self.f_go = FTRIG(clk = lambda: self.go or self.man )
@@ -242,17 +244,21 @@ class FlowMeter(SFC):
     def progress(self):
         from_m = self.done
         self.log(f'набор {from_m} до {from_m+self.sp}')
-        for x in  self.till( lambda: self.done<from_m + self.sp-self.err ):
+        for x in  self.till( lambda: self.done<from_m + self.sp-self.err - self.ff ):
             self.__auto( out = True )
             yield x
         self.__auto( out = False )
-        if self.closed is not None:yield from self.until( lambda: self.closed,min=2 )
+        if self.closed is not None:yield from self.until( lambda: self.closed,min=2000 )
         self.err = self.done - self.sp + self.err
         self.log(f'набор закончен, итог: {self.done}')
         
     def main(self) :
         self.log(f'готов')
         self.busy = False
+        if self.imp_kg>0: 
+            self.impulseWeight = 1.0/self.imp_kg
+            if self.__counter is not None: self.__counter.weight = self.impulseWeight
+            
         for x in self.until( self.f_go ):
             self.busy = False
             self.ready= True

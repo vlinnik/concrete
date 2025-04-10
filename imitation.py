@@ -1,6 +1,7 @@
 from pyplc.stl import *
 from pyplc.pou import POU
 from pyplc.channel import Channel
+from pyplc.utils.misc import TOF
 
 class iGATE(STL):
     open = POU.input(False,hidden=True)
@@ -125,7 +126,7 @@ class iROTARYFLOW(STL):
         super().__init__( id,parent )
         self.q = q.force if q is not None else None
         self.clk = clk.force if clk is not None else None
-        self.loading = loading
+        self.loading = TOF(lambda: loading(),pt=2000)
         self.limit = limit
         self.speed = speed
         self._skip = 0
