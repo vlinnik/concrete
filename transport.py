@@ -47,6 +47,23 @@ class Transport(POU):
         
     def set_auto(self,on):
         self.auto = on
+        
+    def emergency(self,value: bool=False):
+        """Включить/выключить аварийный режим
+
+        Args:
+            value (bool, optional): True - включить. Defaults to False.
+        """
+        if value:
+            self.auto = False
+            self.out = False
+            self.power = False
+            self.__power.sfc_reset = True
+            self.__startup.sfc_reset = True
+            self.__power( )
+            self.__startup( )
+            self.__power.sfc_reset = False
+            self.__startup.sfc_reset = False
     
     def __call__(self, pt: int = None ):
         with self:
