@@ -67,7 +67,6 @@ class Container( SFC ):
         if self.__counter is None:
             return
 
-        self.q( clk=self.__counter.q.clk, m = self.__counter.q.m )
         self.__counter( )
         self.done=self.__counter.e
 
@@ -78,7 +77,7 @@ class Container( SFC ):
     def install_counter(self,flow_out: callable = None, m: callable = None):
         self.__counter = Counter(m = m, flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
         self.q = self.__counter.q
-       
+
     def collect(self,sp=None):
         if sp:
             self.sp = sp
@@ -178,7 +177,9 @@ class FlowMeter(SFC):
     done=POU.var(0.0)
     err = POU.var(0.0)
     man = POU.var(False)
-    def __init__(self, clk:bool=False,go: bool = None, closed:bool=None,out:bool=None,cnt:int = None,impulseWeight:float = 1.0, id:str=None,parent:POU=None) -> None:
+    imp_kg = POU.var(0,persistent=True)
+    ff = POU.var(0,persistent=True)
+    def __init__(self, clk:bool=False,go: bool = None, closed:bool=None,out:bool=None,cnt:int = None,impulseWeight:float = None,max_sp:float = 10, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.sp = 0.0
         self.go = go
@@ -189,7 +190,8 @@ class FlowMeter(SFC):
         self.busy = False
         self.clk = clk
         self.cnt = cnt
-        self.impulseWeight = impulseWeight
+        self.impulseWeight = impulseWeight if impulseWeight is not None else 0.0035
+        self.loaded = False
         self.unloaded = False   #pulse after accomplishing collect
         self.f_go = FTRIG(clk = lambda: self.go or self.man )
         self.e = 0.0    #maxium posible error
@@ -197,9 +199,10 @@ class FlowMeter(SFC):
         self.done = 0.0 #amount inside dosator
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=2000 )
         self.__counter = None
-        self.q = Flow( )
+        self.q = None
         self.subtasks = [self.afterOut, self.__counting]
         self._q = 0.0
+        self.max_sp = max_sp
 
     def switch_mode(self,manual: bool):
         self.log(f'ручной режим = {manual}')
@@ -216,12 +219,9 @@ class FlowMeter(SFC):
         if self.__counter is None:
             return
 
-        self.q( not self.__counter.q.clk, self.__counter.e - self._q )
-        if not self.__counter.q.clk:
-            self._q = self.done
         self.__counter()
         self.done=self.__counter.e
-    
+            
     def remote(self,out=None):
         self.__auto(out)
 
@@ -229,8 +229,9 @@ class FlowMeter(SFC):
         if out is not None and not self.manual:
             self.out = out
 
-    def install_counter(self,flow_out: callable = None):
+    def install_counter(self,flow_out: callable = None,*args,**kwargs):
         self.__counter = RotaryFlowMeter(weight=self.impulseWeight,clk=TRIG(clk=lambda: self.clk), cnt = lambda: self.cnt, flow_in = lambda: self.afterOut.q ,rst = flow_out )
+        self.q = self.__counter.q
 
     def collect(self,sp=None):
         if sp:
@@ -243,17 +244,21 @@ class FlowMeter(SFC):
     def progress(self):
         from_m = self.done
         self.log(f'набор {from_m} до {from_m+self.sp}')
-        for x in  self.till( lambda: self.done<from_m + self.sp-self.err ):
+        for x in  self.till( lambda: self.done<from_m + self.sp-self.err - self.ff ):
             self.__auto( out = True )
             yield x
         self.__auto( out = False )
-        if self.closed is not None:yield from self.until( lambda: self.closed,min=2 )
+        if self.closed is not None:yield from self.until( lambda: self.closed,min=2000 )
         self.err = self.done - self.sp + self.err
         self.log(f'набор закончен, итог: {self.done}')
         
     def main(self) :
         self.log(f'готов')
         self.busy = False
+        if self.imp_kg>0: 
+            self.impulseWeight = 1.0/self.imp_kg
+            if self.__counter is not None: self.__counter.weight = self.impulseWeight
+            
         for x in self.until( self.f_go ):
             self.busy = False
             self.ready= True
@@ -261,9 +266,11 @@ class FlowMeter(SFC):
         self.ready= False
         self.busy = True
         yield from self.progress( )
+        self.loaded = True
         self.unloaded = True
         yield True
         self.unloaded = False        
+        self.loaded = False
 
 class Accelerator():
     def __init__(self, outs: list[callable], sts: list[callable] = [],turbo = True, best:int = None ):

@@ -1,7 +1,8 @@
 from pyplc.sfc import *
 from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
-from .counting import MoveFlow
+from pyplc.utils.misc import TOF
+from .counting import MoveFlow,Flow,Counter
 
 class ManualDosator(SFC):
     level = POU.input(False,hidden=True)
@@ -146,7 +147,7 @@ class Dosator(SFC):
     ack = POU.var(False)
     nack= POU.input(False,hidden=True)
 
-    def __init__(self,m:float=0, closed:bool=True,out:bool=False, unloaded:bool=False,lock:bool=False,containers = [],id:str = None,parent:POU=None) -> None:
+    def __init__(self,m:float=0, closed:bool=True,out:bool=False, unloaded:bool=False,lock:bool=False,containers = (),id:str = None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.out = out
         self.unloaded=unloaded
@@ -187,9 +188,6 @@ class Dosator(SFC):
         self.s_unload.unset( )
         self.s_go.unset()
         self.sfc_reset = value
-        # self.out = False
-        # self.s_loaded.unset( )
-        # self.s_unload.unset( )
         for c in self.containers:
             c.emergency(value)
             
@@ -314,125 +312,104 @@ class Dosator(SFC):
             batch = batch+1 
             count = self.count 
 
-class DescendingDosator(SFC):
+class DescendingDosator(Dosator):
     """Логика дозатора. Выполняет процедуру дозирования на убывание count раз. Дозирование имеет задержку unloadT сек"""
-    count = POU.input(0)
-    go = POU.input(False)
-    m = POU.input(0.0,hidden=True)
-    lock = POU.input(False)
-    unloadT = POU.var(0,persistent=True)
-    fail = POU.var(False)
-    compensation = POU.var(False)
-    ack = POU.var(False)
-    @POU.init
-    def __init__(self,m=0, count=1,go=False,unload=False,unloaded=False,unloadT=0,lock=False,containers = []) -> None:
-        super().__init__( )
-        self.count = count
-        self.go = go
-        self.unload = unload
-        self.unloaded=unloaded
-        self.unloadT = unloadT
-        self.ignore = 0.0
-        self.m = m 
-        self.containers = containers
-        self.ready = False
-        self.fail = False
-        self.manual = True
-        self.lock = lock
-        self.compensation = False
-        self.ack = False
-        self.s_go = RS(set = lambda: self.go,id = 's_go')
-        self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
-        self.t_ack = FTRIG(clk = lambda: self.ack )
-        for c in self.containers:
-            c.install_counter( flow_out = lambda: self.unloaded ,m = lambda: -self.m )
-        self.subtasks = [ self.always ]
-            
-    def switch_mode(self,manual: bool ):
-        self.log(f'toggled manual = {manual}')
-        self.manual = manual
+    full = POU.var(10.0,persistent=True) 
+    low  = POU.var(0.0,persistent=True)
+    clear= POU.input(False,hidden=True)
+    done = POU.var(0.0)
+    busy = POU.var(False)
     
-    def emergency(self,value: bool = True):
-        self.log(f'emergency = {value}')
-        self.out = False
-        self.s_unload.unset( )
-        self.s_go.unset()
-        self.sfc_reset = value
-        self.s_unload.unset( )
-            
-    def always(self):
-        self.s_unload( )
-        self.s_go( )
+    def __init__(self,m:float=0, closed:bool=True,out:bool=False,lock:bool=False,containers = (),id:str = None,parent:POU=None) -> None:
+        super().__init__(m=m,closed=closed,out=out,containers=containers, lock=lock, id=id, parent=parent)
+        self.autotune = False
+        self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=3000 )
+        self.__counter = Counter(m = lambda: -self.m ,flow_in = lambda: self.afterOut.q,flow_out = lambda: not self.afterOut.q)
+        self.q = self.__counter.q
+        self._done = 0.0
+        self.subtasks += (self.afterOut,self.__counter,self.__counting)
 
-    def start(self,count=None,unload=False):
-        self.count = self.count if count is None else count
-        if unload:
-            self.s_unload(set=True)
-
-        self.s_go( set = True )
-        self.ready = False
-
-    def cycle( self ,batch=0):
-        self.required = [c for c in filter(lambda c: c.sp>0, self.containers )]
-        self.log(f'wait for required containers get ready..')
-        for x in self.until( lambda: all( [c.ready for c in self.required] ),step='wait.containers' ):
-            yield x
-            
-        self.log(f'waiting for unload..')
-        for x in self.until( lambda: self.s_unload.q, step='wait.unload'):
-            yield x
-        self.unload = False
-
-        self.log(f'unloading after {self.unloadT} sec')
-        for x in self.pause( self.unloadT*1000 , step='pause.unload' ):
-            yield x
-
-        self.fail = False
-        self.log(f'waiting for get loaded #{batch+1}..')
-        for c in self.required:
-            c.take = 0
-            if self.compensation:
-                c.take += c.err
-            else:
-                c.err = 0
-            c.collect( )
-            for x in self.until( lambda: c.ready, step='collecting'):
-                yield x
-            if c.err>=c.max_sp*0.04:
-                self.fail = True
-                while not self.t_ack( ):
-                    yield True
-                self.fail = False
+    def __counting(self):
+        self.done = self._done + self.__counter.live
+        if self.clear: 
+            self._done = 0
+            self.__counter.live = 0
+        if not self.afterOut.q and self.out:
+            self._done = self.done
         
+    def map(self,clear:bool=None):
+        if clear is not None: self.join('clear',clear)
+                
+    def wait(self,sec:int):
+        while sec>0:
+            yield from self.pause(1000)
+            sec-=1
+
+    def __auto(self,out=None):
+        if out is not None and not self.manual:
+            self.out = out and not self.lock
+
+    def __rought(self, c: 'Container' , from_m: float):
+        self.log(f'грубый режим с {self.m} кг')
+        yield from self.till( lambda: self.m>from_m-c.sp+c.min_ff,step='rought',n=(self.__auto,))
+        yield from self.until( lambda: self.closed,min=3000 ,step = 'after.rought')
+
+    def __precise(self,c: 'Container', from_m: float):
+        self.log(f'точный режим с {self.m} кг')
+        while self.m>from_m-c.sp*0.99+c.e:
+            dm = c.sp-(from_m - self.m)
+            if c.min_ff>0 and dm<=c.min_ff:
+                w = dm/c.min_ff*(c.max_w-c.min_w)+c.min_w
+            elif c.min_ff<=0:
+                w = c.min_w
+            else:
+                w = c.max_w
+            yield from self.pause( w,n=(self.__auto,) )
+            yield from self.until(lambda: self.closed, min=3000,step='pulse.low')
+        
+    def cycle( self,batch:int=0):
+        self.required = tuple(c for c in filter(lambda c: c.sp>0, self.containers ))
+        required_weight = 0
+        if len(self.required)>0: 
+            yield from self.until( lambda: all( tuple(c.ready for c in self.required) ),step='wait.containers' ) 
+            required_weight = sum( (c.sp for c in self.required) )
+
+            if self.m<required_weight or self.m<self.low:
+                self.log(f'в дозаторе недостаточно для цикла дозирования. пополняем...')
+                for _ in self.till(lambda: self.m<self.full):
+                    if not self.manual:
+                        for c in self.required:
+                            c.out = True
+                    yield _
+                for c in self.required:
+                    c.out = False
+                yield from self.wait(3)
+
+        self.loaded = True
+        yield 
+        self.loaded = False
+            
+        self.log(f'ждем комманды выгружаться..')
+        yield from self.until( lambda: self.s_unload.q, step='wait.unload')
+        self.unload = False
         self.s_unload.unset( )
 
-        self.log(f'pause for ui 1 sec')
-        for x in self.pause( 1000 , step='pause.afterUnload' ):
-            yield x
+        if required_weight>0:
+            self.log(f'начало выгрузки через {self.unloadT} сек')
+            yield from self.wait( self.unloadT )
+            
+            self.fail = False
+            self.busy = True
+            # ждем окончания дозирования выгрузкой
+            for c in self.required:
+                from_m = self.m
+                if self.compensation:
+                    from_m+=c.err
+                yield from self.__rought(c,from_m)
+                yield from self.__precise(c,from_m)
+                c.err  = (from_m - self.m) - c.sp
+            self.busy = False
 
         self.unloaded = True
         yield True
         self.unloaded =  False
-
-    
-    @sfcaction
-    def main(self):
-        self.log(f'ready')
-                
-        for x in self.until( lambda: self.s_go.q , step='ready' ):
-            self.ready=True
-            yield True
-
-        self.s_go.unset( )
-        self.ready=False
-        count = self.count 
-        self.log(f'starting dose/unload cycle #{count} times')
-        batch = 0
-        
-        while batch<count and not self.sfc_reset:   
-            for x in self.cycle(batch):
-                yield x
-
-            batch = batch+1 
-            count = self.count 
-            self.log(f'finished {batch}/{count}')
