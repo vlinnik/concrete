@@ -67,8 +67,12 @@ class ElevatorGeneric(SFC):
         self.sfc_reset = value
         self.up = False
         self.down = False
+        self.dir = 0
+        self.__finalizing = False
+        self.unloading = False
         self.s_unload.unset()
         self.s_loaded.unset()
+        self.s_go.unset()
 
     def __auto(self,up=None,down=None):
         if self.manual!=self.__manual and self.manual:
