@@ -187,6 +187,7 @@ class Dosator(SFC):
         self.s_loaded.unset( )
         self.s_unload.unset( )
         self.s_go.unset()
+        self.unload = False
         self.sfc_reset = value
         for c in self.containers:
             c.emergency(value)
