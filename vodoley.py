@@ -1,5 +1,6 @@
 from pyplc.sfc import *
 from .container import FlowMeter
+from .counting import Delta
 
 class Vodoley(FlowMeter):
     humidity = POU.input(0,hidden=True)
@@ -26,6 +27,9 @@ class Vodoley(FlowMeter):
         self.humidity = humidity
         self.out = out
         self.clk = clk
+        self._expense = Delta(self._counter.q)
+        self.q = self._expense.q
+        
         
     def pulse(self, t:callable):
         yield from super().progress( )
@@ -82,9 +86,15 @@ class Vodoley(FlowMeter):
                     wpp = (endQ-beginQ)/((endAt - beginAt)/65535*100)
                     self.log(f'расчетная характеристика {wpp:.3f}')
                     self.wpp = wpp
+                    
+    def _counting(self):
+        super()._counting()
+        self._expense( )
                 
-                
-    
+    def install_counter(self,flow_out: callable = None,*args,**kwargs):
+        super().install_counter(flow_out)
+        self._expense.reset_when(flow_out)
+                    
     def main(self):
         self.state = 'ГОТОВ'
         yield from super().main( )

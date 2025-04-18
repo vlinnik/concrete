@@ -2,7 +2,7 @@ from pyplc.sfc import *
 from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG,TRIG
 from pyplc.utils.misc import TOF
-from .counting import Counter,Flow, RotaryFlowMeter
+from .counting import Counter,Flow, RotaryFlowMeter,Expense,Delta
 
 # @sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
 class Container( SFC ):
@@ -43,8 +43,8 @@ class Container( SFC ):
         self.e = 0.0 #maxium posible error
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
-        self.q = None
-        self.__counter = None 
+        self.__counter = Counter(m = m, flow_in= lambda: self.afterOut.q )
+        self.q = self.__counter.q
         self.take = None
         self.lock = lock
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out or not self.closed, pt=3000 )
@@ -68,15 +68,14 @@ class Container( SFC ):
             return
 
         self.__counter( )
-        self.done=self.__counter.e
+        self.done=self.__counter.live
 
     def __auto(self,out=None):
         if out is not None and not self.manual:
             self.out = out and not self.lock
 
-    def install_counter(self,flow_out: callable = None, m: callable = None):
-        self.__counter = Counter(m = m, flow_in= lambda: self.afterOut.q ,flow_out = flow_out)
-        self.q = self.__counter.q
+    def install_counter(self,flow_out: callable = None,*args,**kwargs):
+        self.__counter.reset_when(flow_out)
 
     def collect(self,sp=None):
         if sp:
@@ -198,10 +197,9 @@ class FlowMeter(SFC):
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
         self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=2000 )
-        self.__counter = None
-        self.q = None
-        self.subtasks = [self.afterOut, self.__counting]
-        self._q = 0.0
+        self._counter = RotaryFlowMeter(weight=self.impulseWeight,clk=TRIG(clk=lambda: self.clk), cnt = lambda: self.cnt, flow_in = lambda: self.afterOut.q )
+        self.q = self._counter.q
+        self.subtasks = [self.afterOut, self._counting]
         self.max_sp = max_sp
 
     def switch_mode(self,manual: bool):
@@ -215,12 +213,12 @@ class FlowMeter(SFC):
         self.err = 0
         self.sfc_reset = value
 
-    def __counting(self):
-        if self.__counter is None:
+    def _counting(self):
+        if self._counter is None:
             return
 
-        self.__counter()
-        self.done=self.__counter.e
+        self._counter()
+        self.done=self._counter.e
             
     def remote(self,out=None):
         self.__auto(out)
@@ -229,9 +227,8 @@ class FlowMeter(SFC):
         if out is not None and not self.manual:
             self.out = out
 
-    def install_counter(self,flow_out: callable = None,*args,**kwargs):
-        self.__counter = RotaryFlowMeter(weight=self.impulseWeight,clk=TRIG(clk=lambda: self.clk), cnt = lambda: self.cnt, flow_in = lambda: self.afterOut.q ,rst = flow_out )
-        self.q = self.__counter.q
+    def install_counter(self,flow_out : callable = None,*args,**kwargs):
+        self._counter.reset_when(flow_out)
 
     def collect(self,sp=None):
         if sp:
@@ -257,7 +254,7 @@ class FlowMeter(SFC):
         self.busy = False
         if self.imp_kg>0: 
             self.impulseWeight = 1.0/self.imp_kg
-            if self.__counter is not None: self.__counter.weight = self.impulseWeight
+            if self._counter is not None: self._counter.weight = self.impulseWeight
             
         for x in self.until( self.f_go ):
             self.busy = False

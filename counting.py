@@ -16,7 +16,7 @@ class Flow():
         self.clk = clk
 
 class Counter():
-    def __init__(self,m: callable , flow_in: callable , flow_out: callable) -> None:
+    def __init__(self,m: callable , flow_in: callable , flow_out: callable = None) -> None:
         self.flow_in = flow_in
         self.flow_out = flow_out 
         self.__in = None
@@ -26,6 +26,10 @@ class Counter():
         self.live= 0.0
         self.e = 0.0 # результат учета расхода
         self.q = Flow( )
+
+    def reset_when(self,rst:callable):
+        self.flow_out = rst
+        self.__out = rst( )
 
     def __call__(self, m: float = None) :
         m = m if m is not None else self.m()
@@ -41,7 +45,7 @@ class Counter():
         elif not _in:
             self._m = m
         self.q(_out,self.e )
-        if _in:
+        if _in and self._m is not None:
             self.live = self.e + (m - self._m)
         if _out==False and self.__out==True:
             self.e = 0 
@@ -95,13 +99,34 @@ class Expense():
         self._out = out
         self.q(not out,self.e)
 
-class RotaryFlowMeter():
-    # cnt = POU.input(int(0)) #счетчик импульсов
-    # clk = POU.input(False)  #дискретный вход от импульса
-    # rst = POU.input(False)
-    # flow_in = POU.input(True)
-    # e = POU.output(0.0)
+class Delta():
+    def __init__(self,flow_in: Flow,out:callable = None):
+        self.out = out
+        self.e = 0.0        #результат вычисления расхода
+        self.q = Flow( )
+        self.flow_in = flow_in
+        self._in = None
+        self._out= None
+        self._m  = None
+        
+    def reset_when(self,rst:callable):
+        self.out = rst
+        self._out = rst( )
 
+    def __call__(self, out:bool = None):
+        out = out if out is not None else (False if self.out is None else self.out())
+        if self._in==False and self.flow_in.clk==True or self._m is None:
+            self._m = self.flow_in.m
+        if self._in==True and self.flow_in.clk==False:
+            self.e = self.flow_in.m - self._m
+        self._in = self.flow_in.clk
+
+        if self._out==True and out==False:
+            self.q.m = 0.0
+        self._out = out
+        self.q(not self._in,self.e)
+
+class RotaryFlowMeter():
     def __init__(self,weight:float = 1.0,clk:bool=False,cnt:int = 0, rst:bool=False,flow_in:bool=True):
         self.e = 0.0            #расход
         self.weight = weight    #вес импульса
@@ -134,7 +159,9 @@ class RotaryFlowMeter():
         if callable(self._flow_in):
             return self._flow_in()
         return self._flow_in
-    
+    def reset_when(self,rst: callable):
+        self._rst = rst
+        self.__rst = self.rst
     def clear(self):
         self.e = 0.0
 
@@ -144,10 +171,10 @@ class RotaryFlowMeter():
             if self.__cnt is not None:
                 self.e+= ((self.cnt - self.__cnt) if self.cnt>=self.__cnt else (self.cnt + 256-self.__cnt))*self.weight
             self.__cnt = self.cnt
-        if self.__clk!=self.clk and self.clk and self.flow_in:
+        if self.__clk!=self.clk and self.__clk is not None and self.flow_in:
             self.e+=self.weight
-            self.__clk = self.clk
-        self.q(self.rst,self.e)
+        self.__clk = self.clk
+        self.q(self.flow_in,self.e)
         if self.__rst!=self.rst and self.__rst:
             self.e = 0.0
         if not self.rst and self.__rst:

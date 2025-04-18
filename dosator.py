@@ -171,7 +171,7 @@ class Dosator(SFC):
         self.t_ack = FTRIG(clk = lambda: self.ack )
         self.subtasks = ( self.always, )
         for c in self.containers:
-            c.install_counter( flow_out = lambda: self.out ,m = lambda: self.m )
+            c.install_counter( flow_out = lambda: self.out)
             
     def switch_mode(self,manual: bool ):
         self.log(f'ручной режим = {manual}')
