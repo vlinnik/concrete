@@ -2,7 +2,7 @@ from pyplc.sfc import *
 from pyplc.utils.trig import FTRIG
 from pyplc.utils.latch import RS
 from pyplc.utils.misc import TOF
-from .counting import MoveFlow,Flow,Counter
+from .counting import MoveFlow,Flow,Counter,Delta
 
 class ManualDosator(SFC):
     level = POU.input(False,hidden=True)
@@ -15,7 +15,7 @@ class ManualDosator(SFC):
     helper = POU.output(False)
     unloadT = POU.var(0,persistent=True)
     
-    def __init__(self,level:bool = False, closed:bool=True,out:bool=False, lock:bool=False,full: bool = False, helper: bool = False, dosator:'Dosator' = None, id:str=None,parent:POU=None) -> None:
+    def __init__(self,level:bool = False, closed:bool=True,out:bool=False, lock:bool=False,full: bool = False, helper: bool = False, dosator:'Dosator' = None, containers: list['Container']=(), id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.helper_t = 5
         self.closed = closed
@@ -36,21 +36,33 @@ class ManualDosator(SFC):
         self.s_unload = RS(set=lambda: self.unload, id = 's_unload')
         self.s_loaded = RS(set=lambda: self.loaded, id = 's_loaded' )
         self.dosator = dosator
-        self.subtasks = [ self.s_go, self.s_unload, self.s_loaded]
+        self.subtasks = (self.s_go, self.s_unload, self.s_loaded)
         self.e = 0.0
         
         if dosator:
             self.join('loaded',lambda: dosator.unloaded )
-            self.subtasks.append(self.__dosator)
+            self.subtasks+= (self.__dosator, )
             
-            self.expenses=[ MoveFlow(flow_in=c.q, out=lambda: self.out) for c in dosator.containers ]
+            self.expenses=tuple(MoveFlow(flow_in=c.q, out=self._unsealed) for c in dosator.containers )
         else:
-            self.expenses=[ ]
-        
+            self.expenses=( )
+            
+        self.containers = containers
+        for c in containers:
+            c.install_counter( flow_out = self._unsealed)
+            c.join('go', lambda: self.load)
+        self.expenses+= tuple(MoveFlow(flow_in=c.q, out=self._unsealed) for c in containers )
+        self.subtasks+=self.expenses
+
+    def _unsealed(self): 
+        return self.out or not self.closed
+                        
     def switch_mode(self,manual: bool ):
         self.log(f'ручной режим = {manual}')
         self.out = False
         self.manual = manual
+        for c in self.containers:
+            c.switch_mode(manual)
     
     def emergency(self,value: bool = True):
         self.log(f'аварийный режим = {value}')
@@ -62,6 +74,8 @@ class ManualDosator(SFC):
         self.s_go.unset()
         self.sfc_reset = value
         self.out = False
+        for c in self.containers:
+            c.emergency(value)
         
     def __auto(self,out:bool = None):
         if out is not None and not self.manual:
@@ -92,9 +106,14 @@ class ManualDosator(SFC):
         self.unloaded = False
         yield from self.pause(self.delay,step='delay')
 
+        if len(self.containers)>0 and sum( (c.sp for c in self.containers) )==0:
+            skip_open = True
+        else:
+            skip_open = False
+            
         self.log(f'выгружаем {self.unloadT} сек')
         secs = 0 
-        while secs<self.unloadT or self.level:
+        while not skip_open and (secs<self.unloadT or self.level):
             self.__auto( True )
             yield from self.pause(1000,step='pause.1sec')
             secs+=1
@@ -171,7 +190,7 @@ class Dosator(SFC):
         self.t_ack = FTRIG(clk = lambda: self.ack )
         self.subtasks = ( self.always, )
         for c in self.containers:
-            c.install_counter( flow_out = lambda: self.out)
+            c.install_counter( flow_out = lambda: self.out or not self.closed)
             
     def switch_mode(self,manual: bool ):
         self.log(f'ручной режим = {manual}')

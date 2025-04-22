@@ -20,8 +20,6 @@ class Transport(POU):
             ison (bool, optional): состояние ВКЛЮЧЕНО. Defaults to False. Hidden
             pt (int, optional): задержка отключения в сек. Defaults to 5.
             active (bool): Включена логика работы. Иначе out повторяет auto
-        
-        Outputs:
             out (bool) : если включение удалось повторяет auto
             power (bool) : управление включением конвейера
         """        

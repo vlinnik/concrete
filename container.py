@@ -196,7 +196,7 @@ class FlowMeter(SFC):
         self.e = 0.0    #maxium posible error
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
-        self.afterOut = TOF( id='afterOut', clk=lambda: self.out, pt=2000 )
+        self.afterOut = TOF( id='afterOut', clk=lambda: self.out or not self.closed, pt=2000 )
         self._counter = RotaryFlowMeter(weight=self.impulseWeight,clk=TRIG(clk=lambda: self.clk), cnt = lambda: self.cnt, flow_in = lambda: self.afterOut.q )
         self.q = self._counter.q
         self.subtasks = [self.afterOut, self._counting]
@@ -229,6 +229,9 @@ class FlowMeter(SFC):
 
     def install_counter(self,flow_out : callable = None,*args,**kwargs):
         self._counter.reset_when(flow_out)
+        delta = Delta(flow_in = self._counter.q,out = flow_out) 
+        self.q = delta.q
+        self.subtasks+=(delta,)
 
     def collect(self,sp=None):
         if sp:

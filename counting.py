@@ -16,6 +16,10 @@ class Flow():
         self.clk = clk
 
 class Counter():
+    """Учет расхода по 2 потокам: вход и выход. flow_in прикрепляется к TOF от входного затвора, flow_out к сигналу отсутствия герметичности 
+    дозатора. В обычной схеме при создании Container создается с flow_out = None, в Dosator происходит install_counter где flow_out подключается
+    к герметичности Dosator
+    """
     def __init__(self,m: callable , flow_in: callable , flow_out: callable = None) -> None:
         self.flow_in = flow_in
         self.flow_out = flow_out 
@@ -26,6 +30,9 @@ class Counter():
         self.live= 0.0
         self.e = 0.0 # результат учета расхода
         self.q = Flow( )
+
+    def __str__(self):
+        return f'Counter=<in={self.__in},out={self.__out},m={self.m}>'
 
     def reset_when(self,rst:callable):
         self.flow_out = rst
@@ -88,6 +95,9 @@ class Expense():
         self._in = None
         self._out= None 
 
+    def __str__(self):
+        return f'Expense=<in={self._in},out={self._out},e={self.e}>'
+
     def __call__(self, out:bool = None):
         out = out if out is not None else self.out()
         if self._in==False and self.flow_in.clk==True:
@@ -100,6 +110,8 @@ class Expense():
         self.q(not out,self.e)
 
 class Delta():
+    """Подобен Counter, только работает с Flow (Counter работает с m)
+    """
     def __init__(self,flow_in: Flow,out:callable = None):
         self.out = out
         self.e = 0.0        #результат вычисления расхода
@@ -108,6 +120,9 @@ class Delta():
         self._in = None
         self._out= None
         self._m  = None
+
+    def __str__(self):
+        return f'Delta=<in={self._in},out={self._out},e={self.e}>'
         
     def reset_when(self,rst:callable):
         self.out = rst
