@@ -92,7 +92,7 @@ class MSGate(SFC):
         self.error = MSGate.E_NONE
 
     def __till_opened(self,pt=None):
-        pt = self.overwrite("move_t",pt)*1000
+        pt = pt*1000 if pt is not None else self.move_t * 1000 #self.overwrite("move_t",pt)*1000
         self.error = MSGate.E_NONE
         self.log(f'до полного открытия')
         while not self.opened:
@@ -150,8 +150,8 @@ class MSGate(SFC):
     def _unload(self,pt=None,move_t=None):
         yield from self._prepare_unload( )
 
-        pt = self.overwrite('pt',pt)*1000
-        move_t = self.overwrite('move_t',move_t)*1000
+        pt = pt*1000 if pt is not None else self.pt*1000 #self.overwrite('pt',pt)*1000
+        move_t = move_t*1000 if move_t is not None else self.move_t*1000 #self.overwrite('move_t',move_t)*1000
         
         if self.dr>0:
             count = 0
@@ -220,8 +220,8 @@ class MPGate(MSGate):
             yield from super()._unload(pt,move_t)
             return
         
-        pt = self.overwrite('pt',pt)*1000
-        move_t = self.overwrite('move_t',move_t)*1000
+        pt = pt*1000 if pt is not None else self.pt*1000 #self.overwrite('pt',pt)*1000
+        move_t = move_t*1000 if move_t is not None else self.move_t*1000 #self.overwrite('move_t',move_t)*1000
         
         yield from self._prepare_unload( )
 

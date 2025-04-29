@@ -65,7 +65,7 @@ class Transport(POU):
     
     def __call__(self, pt: int = None ):
         with self:
-            pt = self.overwrite('pt',pt)
+            pt = pt if pt is not None else self.pt # self.overwrite('pt',pt)
             if self.active:
                 if self.power and self.hold_on:
                     pass

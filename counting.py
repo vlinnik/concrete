@@ -77,7 +77,7 @@ class MoveFlow(POU):
 
     def __call__(self, out = None):
         with self:
-            self.out = self.overwrite('out',out)
+            if out is not None: self.out = out
             if self.f_in( ):    #загрузили
                 self.e += self.flow_in.m
 
@@ -85,6 +85,7 @@ class MoveFlow(POU):
 
             if self.f_out( ):   #выгрузили
                 self.e = 0.0
+        return self.e
 
 class Expense():
     def __init__(self,flow_in: Flow,out:callable):
@@ -108,6 +109,7 @@ class Expense():
             self.e = 0.0
         self._out = out
         self.q(not out,self.e)
+        return self.e
 
 class Delta():
     """Подобен Counter, только работает с Flow (Counter работает с m)

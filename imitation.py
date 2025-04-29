@@ -18,8 +18,8 @@ class iGATE(STL):
         self.simple = simple
     def __call__(self, open=None,close=None):
         with self:
-            open = self.overwrite('open',open)
-            close = self.overwrite('close',close)
+            open = open if open is not None else self.open 
+            close = close if close is not None else self.close 
             if open and self.pos<20:
                 self.pos+=1
             if (close or (self.simple and not open)) and self.pos>0:
@@ -39,8 +39,8 @@ class iMOTOR(STL):
         self.ison = ison.force if ison is not None else False
     def __call__(self, on=None,off=None):
         with self:
-            on = self.overwrite('on',on)
-            off = self.overwrite('off',off)
+            on = on if on is not None else self.on 
+            off = off if off is not None else self.off 
             if self.simple:
                 self.ison = on
             else:
@@ -49,12 +49,11 @@ class iMOTOR(STL):
                 elif off:
                     self.ison = False
 
-#@stl(inputs=['loading','unloading'],outputs=['q'])
 class iWEIGHT(STL):
     loading = POU.input(False,hidden=True)
     unloading =POU.input(False,hidden=True)
     q = POU.output(0,hidden=True)
-    @POU.init
+    
     def __init__(self,speed=10,loading = False,unloading=False,q: int = None):
         super().__init__( )
         self.q = q.force if q is not None else None
@@ -63,8 +62,8 @@ class iWEIGHT(STL):
         self.speed = speed
     def __call__(self,  loading=None, unloading=None):
         with self:
-            loading = self.overwrite('loading',loading)
-            unloading = self.overwrite('unloading',unloading)
+            if loading is not None: self.loading = loading 
+            if unloading is not None: unloading = self.unloading 
             if self.loading:
                 self.q = self.q+self.speed if self.q+self.speed<65535 else 65535
             if self.unloading:
@@ -82,7 +81,7 @@ class iVALVE(STL):
         self.open = open
     def __call__(self, open=None):
         with self:
-            open = self.overwrite('open',open)
+            open = if open is not None else self.open
             self.closed = not open
             self.opened = open 
 
