@@ -168,6 +168,8 @@ class Dosator(SFC):
 
     def __init__(self,m:float=0, closed:bool=True,out:bool=False, unloaded:bool=False,lock:bool=False,containers = (),id:str = None,parent:POU=None) -> None:
         super().__init__( id,parent )
+        self.go = False
+        self.count = 1
         self.out = out
         self.unloaded=unloaded
         self.ignore = 0.0
@@ -222,10 +224,11 @@ class Dosator(SFC):
             self.out = out and not self.lock
 
     def always(self):
-        self.s_loaded( ) 
-        self.s_unload( )
+        if not self.ready:
+            self.s_loaded( ) 
+            self.s_unload( )
         self.s_go( )
-        self.out = not self.lock and self.out 
+        if self.lock: self.out = False
 
     def start(self,count=None,unload=False):
         self.count = self.count if count is None else count

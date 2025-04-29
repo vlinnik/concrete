@@ -47,8 +47,11 @@ class Container( SFC ):
         self.q = self.__counter.q
         self.take = None
         self.lock = lock
-        self.afterOut = TOF( id='afterOut', clk=lambda: self.out or not self.closed, pt=3000 )
-        self.subtasks = (self.__counting,self.__lock,self.afterOut)
+        self.afterOut = TOF( clk=self._unsealed, pt=3000 )
+        self.subtasks = (self.__counting,self.__lock, self.afterOut )
+
+    def _unsealed(self): 
+        return self.out or not self.closed
     
     def switch_mode(self,manual: bool):
         self.log(f'ручной режим = {manual}')
@@ -61,7 +64,8 @@ class Container( SFC ):
         self.sfc_reset = value
     
     def __lock(self):
-        self.out = self.out and not self.lock
+        if self.lock:
+            self.out = False
     
     def __counting(self):            
         if self.__counter is None:
@@ -149,10 +153,8 @@ class Container( SFC ):
     def main(self) :
         self.log(f'готов')
         self.busy = False    
-        for _ in self.until( self.f_go ,step='ready'):
-            self.busy = False
-            self.ready= True
-            yield 
+        self.ready= True
+        yield from self.until( self.f_go ,step='ready')
         self.ready= False
         self.busy = True
         from_m = self.m 

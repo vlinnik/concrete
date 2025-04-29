@@ -19,7 +19,7 @@ class Weight(STL):
         self.k=100/16 if mmax is None else mmax/16
         self.a=0.0
         self.mA = 4.0
-        self.hist=[0]*4
+        # self.hist=[0]*4
         self.points=[]
         self.shift = False
         self.set = False
@@ -31,7 +31,8 @@ class Weight(STL):
         self.step = 0
         self.f_shift = FTRIG(clk=lambda: self.shift)
         self.f_set = FTRIG(clk=lambda: self.set)
-        self.h_index = 0
+        # self.h_index = 0
+        self._m = 0.0
     
     def tune(self,load):
         self.points.append( (self.mA,load) )
@@ -44,29 +45,31 @@ class Weight(STL):
                 self.a = m1 - (mA1-4)*self.k
                 self.points.clear()
 
+    def get_m(self):
+        return self._m
+    
     def __call__(self,raw:int=None):
         with self:
-            raw = self.overwrite('raw',raw)
+            raw = self.raw #self.overwrite('raw',raw)
             if raw is not None:
-                self.hist[self.h_index]=raw & 0xFFFC
-                self.h_index = (self.h_index+1) % 4
-                if self.h_index==0:
-                    self.mA  = sum(self.hist)/0x10000*4 # optimized sum(self.hist)/4/65535*16 + 4
-                    self.slow_m = self.mA * self.k + self.a
-                    self.mA += 4
-                    if self.__raw is not None:
-                        self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
-                    else:
-                        self.still = True
-                    self.__raw = raw
+                # self.hist[self.h_index]=raw & 0xFFFC
+                # self.h_index = (self.h_index+1) % 4
+                # if self.h_index==0:
+                self.mA  = (raw & 0xFFFC) / 0x1000 # optimized sum(self.hist)/4/65535*16 + 4
+                self.fast_m = self.slow_m = self.mA * self.k + self.a
     
                 if self.f_shift():
-                    self.a = -(self.mA-4)*self.k
+                    self.a = -self.mA*self.k
                 if self.f_set():
                     self.tune( Weight.g_Load )
-
-                self.fast_m = ( (raw & 0xFFFC)/0x1000 )*self.k + self.a
-
+    
+                self.mA += 4                
+                if self.__raw is not None:
+                    self.still = abs(raw - self.__raw)<650 #изменение менее чем 2% 
+                else:
+                    self.still = True
+                self.__raw = raw
+    
                 if self.step>0:
                     self.m = self.step*int(self.fast_m/self.step)
                 else:
@@ -74,5 +77,7 @@ class Weight(STL):
                 self.ok = True
             else:
                 self.ok = False
+                
+        self._m = self.m
 
         return self.m
