@@ -42,7 +42,7 @@ class Weight(STL):
             mA1,m1 = self.points[-1]
             if abs(mA1 - mA0)>=0.005:
                 self.k = (m1-m0)/(mA1-mA0)
-                self.a = m1 - (mA1-4)*self.k
+                self.a = m1 - (mA1)*self.k
                 self.points.clear()
 
     def get_m(self):

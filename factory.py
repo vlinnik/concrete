@@ -1,6 +1,7 @@
 from pyplc.pou import POU
 from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON,BLINK
+from concrete.weight import Weight
 
 class Factory(POU):
     CODES = []
@@ -11,7 +12,7 @@ class Factory(POU):
     emergency = POU.var(False)
     powerfail = POU.var(True)
     powerack = POU.var(False)
-    heartbeat= POU.var(False)
+    heartbeat= POU.output(False)
     over = POU.var(False)
     scanTime = POU.var(0)
 
@@ -19,6 +20,7 @@ class Factory(POU):
     moto = POU.var(int(0),persistent=True)
     used = POU.var(int(0),persistent=True)
     powered = POU.var(int(0),persistent=True)
+    load = POU.output(float(0.0))               #калибровочный груз
 
     def __init__(self,id:str = None,parent:POU=None) -> None:
         super().__init__( id,parent )
@@ -41,6 +43,9 @@ class Factory(POU):
         self.__last_call = POU.NOW_MS
         self.on_mode = [lambda *args: self.log('ручной режим = ',*args)]
         self.on_emergency = [lambda *args: self.log('аварийный режим = ',*args)]
+        self.bind(Factory.load,self._load_changed)
+    def _load_changed(self,load: float):
+        Weight.g_Load = load
     def trial(self):
         if self.activated:
             return

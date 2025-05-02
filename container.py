@@ -54,12 +54,12 @@ class Container( SFC ):
         return self.out or not self.closed
     
     def switch_mode(self,manual: bool):
-        self.log(f'ручной режим = {manual}')
+        # self.log(f'ручной режим = {manual}')
         self.manual = manual
         self.out = False
         
     def emergency(self,value: bool = True ):
-        self.log(f'аварийный режим = {value}')
+        # self.log(f'аварийный режим = {value}')
         self.out = False
         self.sfc_reset = value
     

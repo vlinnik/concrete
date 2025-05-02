@@ -174,7 +174,6 @@ class Manager(SFC):
             if hasattr(d,'containers'):
                 for c in d.containers:
                     c.err = 0
-
         batch = 0
         job = self.exec(self.precollect( ))
 
@@ -185,6 +184,14 @@ class Manager(SFC):
             self.subtasks.append(collected)
         
         while batch<self.mixer.count:
+            steady = True
+            for _ in self.till(lambda: steady):
+                steady = False
+                for d in self.dosators:
+                    steady = steady or d.ready
+                yield
+            for d in self.dosators:
+                d.go = False            
             self.log(f'начало замеса #{batch+1}')
             yield from self.until( lambda: self.f_collected.q )
             if batch+1>=self.mixer.count:
@@ -193,10 +200,6 @@ class Manager(SFC):
                 
             self.log(f'все набрано #{batch+1}')
             self.f_collected.unset( )
-
-            for d in self.dosators:
-                d.go = False
-
             yield from self.until( lambda: collected.q )
                 
             self.log(f'смеситель готов для #{batch+1}')

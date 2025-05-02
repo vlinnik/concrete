@@ -58,17 +58,19 @@ class ManualDosator(SFC):
         return self.out or not self.closed
                         
     def switch_mode(self,manual: bool ):
-        self.log(f'ручной режим = {manual}')
+        # self.log(f'ручной режим = {manual}')
         self.out = False
         self.manual = manual
         for c in self.containers:
             c.switch_mode(manual)
     
     def emergency(self,value: bool = True):
-        self.log(f'аварийный режим = {value}')
+        # self.log(f'аварийный режим = {value}')
         self.go = False
         self.out = False
         self.unload = False
+        self.helper = False
+        self.unloaded = False
         self.s_loaded.unset( )
         self.s_unload.unset( )
         self.s_go.unset()
@@ -195,14 +197,14 @@ class Dosator(SFC):
             c.install_counter( flow_out = lambda: self.out or not self.closed)
             
     def switch_mode(self,manual: bool ):
-        self.log(f'ручной режим = {manual}')
+        # self.log(f'ручной режим = {manual}')
         self.out = False
         self.manual = manual
         for c in self.containers:
             c.switch_mode(manual)
     
     def emergency(self,value: bool = True):
-        self.log(f'аварийный режим = {value}')
+        # self.log(f'аварийный режим = {value}')
         self.out = False
         self.go = False
         self.s_loaded.unset( )
@@ -224,10 +226,9 @@ class Dosator(SFC):
             self.out = out and not self.lock
 
     def always(self):
-        if not self.ready:
+        if self.s_go( ) or not self.ready:
             self.s_loaded( ) 
             self.s_unload( )
-        self.s_go( )
         if self.lock: self.out = False
 
     def start(self,count=None,unload=False):
@@ -319,15 +320,16 @@ class Dosator(SFC):
 
     def main(self):
         self.log(f'готов')
-                
-        for _ in self.until( lambda: self.s_go.q , step='ready' ):
-            self.ready=True
-            yield
+
+        self.ready = True
+        yield from self.until( lambda: self.s_go.q , step='ready' )
+        self.ready=False
+        yield from self.till( lambda: self.go, step='steady' )
 
         self.s_go.unset( )
-        self.ready=False
         count = self.count 
         batch = 0
+        self.log(f'запуск, {count} циклов')
         
         while batch<count:   
             yield from self.cycle(batch)

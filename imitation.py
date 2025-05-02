@@ -81,7 +81,7 @@ class iVALVE(STL):
         self.open = open
     def __call__(self, open=None):
         with self:
-            open = if open is not None else self.open
+            open = open if open is not None else self.open
             self.closed = not open
             self.opened = open 
 
