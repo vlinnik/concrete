@@ -39,7 +39,6 @@ class Container( SFC ):
         self.busy = False
         self.manual = True
         self.autotune = False   # автоопределение параметров дозирования
-        self.f_go = FTRIG(clk = lambda: self.go )
         self.e = 0.0 #maxium posible error
         self.err = 0.0  #accumulated error 
         self.done = 0.0 #amount inside dosator
@@ -48,7 +47,7 @@ class Container( SFC ):
         self.take = None
         self.lock = lock
         self.afterOut = TOF( clk=self._unsealed, pt=3000 )
-        self.subtasks = (self.__counting,self.__lock, self.afterOut )
+        self.subtasks = (self.__counting,self.__lock, self.afterOut)
 
     def _unsealed(self): 
         return self.out or not self.closed
@@ -80,14 +79,6 @@ class Container( SFC ):
 
     def install_counter(self,flow_out: callable = None,*args,**kwargs):
         self.__counter.reset_when(flow_out)
-
-    def collect(self,sp=None):
-        if sp:
-            self.sp = sp
-        if not self.ready:
-            return
-        self.ready = False
-        self.f_go( clk = True )
 
     def __ff(self,sp):
         if sp<=self.min_ff or self.max_sp==0:
@@ -154,13 +145,15 @@ class Container( SFC ):
         self.log(f'готов')
         self.busy = False    
         self.ready= True
-        yield from self.until( self.f_go ,step='ready')
+        yield from self.until( lambda: self.go,step = 'ready' )
         self.ready= False
-        self.busy = True
-        from_m = self.m 
-        yield from self.__rought( self.sp )
-        yield from self.__precise( self.sp, from_m=from_m )
-        yield from self.until(lambda: self.closed, min=2,max=2 ,step = 'stab')
+        yield from self.till( lambda: self.go,step='steady' )
+        if self.sp>0:
+            self.busy = True
+            from_m = self.m 
+            yield from self.__rought( self.sp )
+            yield from self.__precise( self.sp, from_m=from_m )
+            yield from self.until(lambda: self.closed, min=2,max=2 ,step = 'stab')
         if self.sp>0:
             self.err = (self.m - (from_m + self.sp - (self.take if self.take is not None and self.take>0 else 0)) ) 
             self.log(f'завершено на {self.m:.2f} кг, погрешность={(self.err)/self.sp*100:.1f}%')
@@ -234,14 +227,6 @@ class FlowMeter(SFC):
         delta = Delta(flow_in = self._counter.q,out = flow_out) 
         self.q = delta.q
         self.subtasks+=(delta,)
-
-    def collect(self,sp=None):
-        if sp:
-            self.sp = sp
-        if not self.ready:
-            return
-        self.ready = False
-        self.f_go( clk = True )
         
     def progress(self):
         from_m = self.done
@@ -261,11 +246,11 @@ class FlowMeter(SFC):
             self.impulseWeight = 1.0/self.imp_kg
             if self._counter is not None: self._counter.weight = self.impulseWeight
             
-        for x in self.until( self.f_go ):
-            self.busy = False
-            self.ready= True
-            yield x
+        self.busy = False
+        self.ready= True
+        yield from self.until( lambda: self.go,step='ready')
         self.ready= False
+        yield from self.until( self.f_go,step = 'steady' )
         self.busy = True
         yield from self.progress( )
         self.loaded = True

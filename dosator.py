@@ -137,9 +137,10 @@ class ManualDosator(SFC):
     def main(self):
         self.log(f'готов')
                 
-        for _ in self.until( lambda: self.s_go.q , step='ready' ):
-            self.ready=True
-            yield
+        self.ready = True
+        yield from self.until( lambda: self.s_go.q , step='ready' )
+        self.ready=False
+        yield from self.till( lambda: self.go, step='steady' )
 
         self.s_go.unset( )
         self.ready=False
@@ -263,7 +264,9 @@ class Dosator(SFC):
                     c.take += c.err
                 else:
                     c.err = 0
-                c.collect( )
+                c.go = True
+                yield
+                c.go = False
                 yield from self.until( lambda: c.ready or self.is_loaded(), step='collecting')
                 if c.err>=c.max_sp*0.04:
                     self.fail = True
