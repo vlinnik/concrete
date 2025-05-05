@@ -115,7 +115,7 @@ class ManualDosator(SFC):
             
         self.log(f'выгружаем {self.unloadT} сек')
         secs = 0 
-        while not skip_open and (secs<self.unloadT or self.level):
+        while not skip_open and (secs<self.unloadT or self.level or self.closed):
             self.__auto( True )
             yield from self.pause(1000,step='pause.1sec')
             secs+=1
