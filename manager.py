@@ -223,11 +223,12 @@ class Manager(SFC):
         
 class Lock():
     """Блокировка с таймером. Условие активации блокировки задается параметром key"""    
-    def __init__(self,delay: int = 4, key: callable = None):
+    def __init__(self,delay: int = 4, key: callable = None,rst: tuple[callable] = ()):
         self.delay = delay*1000000000
         self.q = False
         self._x = None
         self._key = key
+        self._rst = rst
         
     def __call__(self, key: bool=None) -> bool:
         if callable(self._key)  and key is None:
@@ -240,5 +241,7 @@ class Lock():
             self.q = (POU.NOW - self._x)<self.delay
         else:
             self.q = False
-            
+        if self.q:
+            for r in self._rst:
+                r(False)
         return self.q
