@@ -1,5 +1,6 @@
 from pyplc.sfc import SFC,POU
 from pyplc.utils.trig import TRIG
+from pyplc.utils.misc import TON
 
 class Motor(SFC):
     """Управление двигателем, 2 или 1 сигнала для включения, обратная связь и звонок
@@ -123,7 +124,14 @@ class MotorST(SFC):
         self.powered = powered
         self._remote = False
         self.heat = heat    #переход звезда - треугольник в мсек
+        self.subtasks = (TON(clk=lambda: self.tria and self.powered and not self.ison,q = self._emergency), )
         
+    def _emergency(self,on: bool):
+        if on:
+            self.powered = False
+            self.star = False
+            self.tria = False
+                    
     def remote(self,on: bool):
         if self._remote==on:
             return
