@@ -1,6 +1,7 @@
 from pyplc.sfc import SFC,POU
 from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON
+from pyplc.ld import LD
 
 class Motor(SFC):
     """Управление двигателем, 2 или 1 сигнала для включения, обратная связь и звонок
@@ -107,14 +108,16 @@ class MotorST(SFC):
     E_NONE = 0
     E_TIMEOUT = -1
     ison = POU.input(False,hidden=True)
+    emergency = POU.input(False,hidden=True)
     star = POU.output(False,hidden=True)
     tria = POU.output(False,hidden=True)
     powered = POU.output(False)
     bell = POU.output(False,hidden=True)
     manual = POU.var( False )
 
-    def __init__(self,ison:bool=False, star:bool=False,tria:bool = False,bell:bool=False,powered:bool=False, heat: int = 3000, id:str=None,parent:POU=None) -> None:
+    def __init__(self,ison:bool=False, star:bool=False,tria:bool = False,bell:bool=False,powered:bool=False, emergency: bool=False, heat: int = 3000, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
+        self.emergency = emergency
         self.ison = ison
         self.star = star
         self.tria= tria
@@ -124,10 +127,9 @@ class MotorST(SFC):
         self.powered = powered
         self._remote = False
         self.heat = heat    #переход звезда - треугольник в мсек
-        self.subtasks = (TON(clk=lambda: self.tria and self.powered and not self.ison,q = self._emergency), )
-        
+        self.subtasks = (TON(clk=lambda: self.tria and self.powered and not self.ison,q = self._emergency), LD.no(emergency).out(self._emergency).end() )
     def _emergency(self,on: bool):
-        if on:
+        if on==True:
             self.powered = False
             self.star = False
             self.tria = False
@@ -161,7 +163,7 @@ class MotorST(SFC):
                 yield
             yield from self.pause(1000)
 
-        if self.manual or self._remote:        
+        if (self.manual or self._remote) and not self.emergency:        
             self.log(f'пуск двигателя звезда {self.heat} мсек')
             self.star = True
             self.powered = True

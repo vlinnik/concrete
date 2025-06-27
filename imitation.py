@@ -7,14 +7,16 @@ class iGATE(STL):
     open = POU.input(False,hidden=True)
     close =POU.input(False,hidden=True)
     opened=POU.output(False,hidden=True)
+    middle=POU.output(False,hidden=True)
     closed=POU.output(False,hidden=True)
-    def __init__(self,open=False,close=False,opened:bool=False,closed:bool=True,simple=False):
+    def __init__(self,open=False,close=False,opened:bool=False,closed:bool=True,middle:bool=None,simple=False):
         super( ).__init__( )
         self.pos = 0
         self.open = open
         self.close= close
         self.opened = opened.force if opened is not None else None
         self.closed = closed.force if closed is not None else None
+        self.middle = middle.force if middle is not None else None
         self.simple = simple
     def __call__(self, open=None,close=None):
         with self:
@@ -26,6 +28,7 @@ class iGATE(STL):
                 self.pos-=1
             self.closed = self.pos==0
             self.opened = self.pos==20
+            self.middle = 8<self.pos<12
 
 class iMOTOR(STL):
     on = POU.input(False,hidden=True)

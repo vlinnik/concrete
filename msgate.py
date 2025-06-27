@@ -195,11 +195,13 @@ class MPGate(MSGate):
     """Затвор смесителя гидравлический. Поддерживает режим выгрузки шагами: открыть-постоять-открыть еще...
     """
     close = POU.output(False)
+    middle = POU.input(False,hidden=True)  
     middle_t = POU.var(int(1000),persistent=True)   #< время остановки после шага
     
-    def __init__(self, closed:bool = True, opened:bool=False, open:bool = False, close:bool = False, lock:bool = False, forbid: bool=False, id:str=None,parent:POU=None) -> None:
+    def __init__(self, closed:bool = True, opened:bool=False, middle: bool = False ,open:bool = False, close:bool = False, lock:bool = False, forbid: bool=False, id:str=None,parent:POU=None) -> None:
         super().__init__( closed=closed,opened=opened,open=open,lock=lock,forbid=forbid,id=id,parent=parent)
         self.close = close 
+        self.middle = middle
         
     def _auto(self, open):
         if isinstance(open,bool):
@@ -228,9 +230,12 @@ class MPGate(MSGate):
         T = POU.NOW + pt*1000000 #ms->ns
         count = 0
         for _ in self.pause( pt,step='step-by-step.unload' ):
-            yield from self.pause( self.dr, step='step-by-step.move' )
+            if self.count==0:
+                yield from self.until(lambda: self.middle or self.opened, step='wait.middle')
+            else:            
+                yield from self.pause( self.dr, step='step-by-step.move' )
             self._auto(MPGate.CMD_FREE)   #stop opening
-            yield from self.pause( self.middle_t, step='step-by-step.stay' )
+            yield from self.pause( self.middle_t*1000, step='step-by-step.stay' )
             self._auto(MPGate.CMD_OPEN)   #open more
             count+=1
             if self.opened or count>=self.count: self.sfc_continue = True
