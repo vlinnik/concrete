@@ -147,6 +147,10 @@ class ElevatorGeneric(SFC):
             yield
         
         self.ready = False
+        yield from self.till( lambda: self.go, step='steady' )
+
+        self.s_go.unset( )
+        
         self.state = 'НА ПОГРУЗКУ'
         while not self.below and not self.sfc_reset:
             for _ in self.until( lambda: self.below,max=self.maxT*1000, step='return'):
@@ -211,7 +215,6 @@ class ElevatorGeneric(SFC):
 
             if not self.go:
                 count = self.count
-                self.s_go.unset()
 
             self.loaded = False
             self.s_loaded.unset()

@@ -133,7 +133,6 @@ class Manager(SFC):
     def precollect(self):
         while not self.ready:
             yield from self.until( lambda: self.collected.q )
-            yield from self.till( lambda: self.mixer.forbid )
 
             self.log('запуск предварительного набора')
             steady = True
@@ -145,8 +144,21 @@ class Manager(SFC):
             self.log('дозаторы могут начать набор')
             
             if not self.ready:
+                yield from self.till( lambda: self.mixer.forbid )
+
                 for d in self.dosators:
                     d.go = True
+
+                steady = True
+                for _ in self.till(lambda: steady):
+                    steady = False
+                    for d in self.dosators:
+                        steady = steady or d.ready
+                    yield
+                for d in self.dosators:
+                    d.go = False            
+                    
+                    
         self.log('преднабор больше не нужен')
         
     def main( self):
