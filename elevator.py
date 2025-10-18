@@ -209,7 +209,10 @@ class ElevatorGeneric(SFC):
             if self.middle:
                 self.middle = False
             self.unloading = True
-            yield from self.pause(self.unloadT*1000, step='unloading')
+            for _ in self.pause(self.unloadT*1000, step='unloading'):
+                yield
+                self.__auto(up=not self.above,down=False)
+            self.__auto(up=False,down=False)
 
             self.unloading = False
 
