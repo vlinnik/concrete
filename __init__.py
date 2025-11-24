@@ -12,5 +12,6 @@ from .vodoley import Vodoley
 from .transport import Transport
 
 from ._version import version
+from pyplc.utils.logging import logger
 
-print(f'\tЗагрузка библиотеки CONCRETE {version}')
+logger.info('Загрузка библиотеки CONCRETE {version}',version=version)
