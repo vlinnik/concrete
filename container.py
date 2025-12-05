@@ -22,7 +22,7 @@ class Container( SFC ):
     done = POU.var(0.0)
     err = POU.var(0.0)
 
-    def __init__(self, m=0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000,id:str = None, parent: POU = None) -> None:
+    def __init__(self, m =0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000,id:str = None, parent: POU = None) -> None:
         super().__init__( id,parent)
         self.go = go
         self.m = m
