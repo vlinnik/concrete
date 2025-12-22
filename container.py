@@ -8,8 +8,8 @@ from .counting import Counter,Flow, RotaryFlowMeter,Expense,Delta
 class Container( SFC ):
     """Расходный бункер"""
     m = POU.input(0.0,hidden=True)
-    sp = POU.input(0.0)
-    go = POU.input(False)
+    sp = POU.var(0.0)
+    go = POU.var(False)
     closed = POU.input(False,hidden=True)
     lock = POU.input(False,hidden=True)
     out = POU.output(False)
@@ -22,11 +22,9 @@ class Container( SFC ):
     done = POU.var(0.0)
     err = POU.var(0.0)
 
-    def __init__(self, m =0.0, sp = 0.0, go = False, out= False, lock=False, closed=True,max_sp: float = 1000,id:str = None, parent: POU = None) -> None:
+    def __init__(self, m =0.0, out= False, lock=False, closed=True,max_sp: float = 1000,id:str = None, parent: POU = None) -> None:
         super().__init__( id,parent)
-        self.go = go
         self.m = m
-        self.sp = sp
         self.min_ff = 300
         self.max_ff = 300
         self.max_sp = max_sp
