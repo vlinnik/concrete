@@ -231,7 +231,7 @@ class Manager(SFC):
             self.mixer.loaded = True
                     
         self.ready = True
-        self.subtasks.remove(collected)
+        if collected in self.subtasks: self.subtasks.remove(collected)
         
 class Lock():
     """Блокировка с таймером. Условие активации блокировки задается параметром key"""    
