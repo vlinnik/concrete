@@ -128,7 +128,7 @@ class iROTARYFLOW(STL):
         super().__init__( id,parent )
         self.q = q.force if q is not None else None
         self.clk = clk.force if clk is not None else None
-        self.loading = TOF(lambda: loading(),pt=2000)
+        self.loading = TOF(lambda: loading(),pt=100)
         self.limit = limit
         self.speed = speed
         self._skip = 0

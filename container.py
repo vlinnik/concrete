@@ -2,7 +2,8 @@ from pyplc.sfc import *
 from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG,TRIG
 from pyplc.utils.misc import TOF
-from .counting import Counter,Flow, RotaryFlowMeter,Expense,Delta
+from .counting import Counter, RotaryFlowMeter,Delta
+from typing import Callable,Optional
 
 # @sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
 class Container( SFC ):
@@ -231,12 +232,12 @@ class FlowMeter(SFC):
     def progress(self):
         from_m = self.done
         self.log(f'набор {from_m} до {from_m+self.sp}')
-        for x in  self.till( lambda: self.done<from_m + self.sp-self.err - self.ff ):
+        for x in  self.till( lambda: self.done<from_m + self.sp - self.ff ):
             self.__auto( out = True )
             yield x
         self.__auto( out = False )
         if self.closed is not None:yield from self.until( lambda: self.closed,min=2000 )
-        self.err = self.done - self.sp + self.err
+        self.err = (self.done - from_m) - self.sp  + self.err
         self.log(f'набор закончен, итог: {self.done}')
         
     def main(self) :
@@ -250,7 +251,7 @@ class FlowMeter(SFC):
         self.ready= True
         yield from self.until( lambda: self.go,step='ready')
         self.ready= False
-        yield from self.until( self.f_go,step = 'steady' )
+        yield from self.until( lambda: self.go,step = 'steady' )
         self.busy = True
         yield from self.progress( )
         self.loaded = True
@@ -259,8 +260,10 @@ class FlowMeter(SFC):
         self.unloaded = False        
         self.loaded = False
 
-class Accelerator():
-    def __init__(self, outs: list[callable], sts: list[callable] = [],turbo = True, best:int = None ):
+class Accelerator(POU):
+    en = POU.var(False)
+    def __init__(self, outs: list[Callable[[bool],None]], sts: list[Callable[[],bool]] = [],turbo = True, best:Optional[int] = None ):
+        super().__init__()
         """Создать ускоритель набора из группы затворов
 
         Args:
@@ -271,53 +274,79 @@ class Accelerator():
         """        
         self.en = True
         self.cnt = len(outs)  #сколько доступно затворов
-        self.src = None       #основной бункер
+        self.src = None       #внешние управляющие (Container)
         self.outs = outs      #все затворы в помощь  
         self.sts = sts        #обратная связь по затворам
         self.cur = 0          #номер затвора что сейчас открывается/будет открываться
         self.nxt = 0          #кто на очереди
-        self.out = False      #выход в обычном режиме 
-        self.closed = True    #состояние обобщенное
         self.turbo = turbo
         self.best = best
-        self.dis = [ f'disable_{i}' for i in range(1,self.cnt+1)]
-        self.man = [ f'out_{i}' for i in range(1,self.cnt+1)]
+        self._dis = [False]*len(outs)   #отключение затвора
+        self._outs = [False]*len(outs)  #внешнее управление
+        self._sts = [True]*len(outs)    #состояние для внешнего управляющего
     
     def link(self,src: Container):
         self.src = src
-        for i in range(1,self.cnt+1):
-            src.export(f'out_{i}',False)
-            src.export(f'disable_{i}',False)
-            
-    def manual(self,index: int):
-        return getattr(self.src,self.man[index])
-    
-    def disabled(self,index: int):
-        return getattr(self.src,self.dis[index])
+        # for i in range(1,self.cnt+1):
+        #     self.src.export(f'disable_{i}',False)
 
+    def out(self,index: int):
+        """Получить функцию управления затвором по номеру
+
+        Args:
+            index (int): номер затвора
+        """
+        def __out__(value: bool):
+            self._outs[index]=value
+        return __out__
+        
+    def closed(self,index: int):
+        """получить функцию получения состояния затвора
+
+        Args:
+            index (int): номер затвора
+        """
+        def __closed__()->bool:
+            return self._sts[index]
+        return __closed__
+    
+    def state(self,index: int):
+        if self.en:
+            if index==0:
+                return self._sts[0]
+            return True
+
+        return self._sts[index]
+    
     def __call__(self):
         if self.src is None or not self.en:
-            return
-        i = 0
-        self.closed = True
-        for o in self.sts:
-            self.closed = self.closed and o() or self.disabled(i)
-            i+=1
-        
-        self.out = False
-        if self.src.manual:    
             i = 0
             for o in self.outs:
-                self.out = self.out or (not self.src.lock and self.manual(i))
-                o( not self.src.lock and self.manual(i))
+                o(self._outs[i])
                 i+=1
-        elif self.src.fast:
+            i=0
+            for s in self.sts:
+                self._sts[i] = s()
+                i+=1
+            if len(self.sts)==0:
+                i=0
+                for o in self._outs:
+                    self._sts[i]=not o
+                    i+=1
+            return
+        for i in range(self.cnt):
+            self._dis[i] = getattr(self.src,f'disable_{i+1}')
+        i = 0
+        
+        out = False
+        i = 0
+        fast = self.src.fast and self.src.out
+        if fast:
+            out = any(self._outs)                 
             i = 0
             for o in self.outs:
-                self.out = self.out or (self.src.out and not self.disabled(i) and not self.src.lock)
-                if not self.disabled(i):
-                    o(self.src.out and not self.src.lock)
-                    if not self.turbo: break
+                if not self._dis[i]:
+                    o(out)
                 i+=1
         else:
             if self.src.out:
@@ -326,14 +355,21 @@ class Accelerator():
                 for o in self.outs:
                     o(False)
                     i+=1
-                    if self.nxt==self.cur and not self.disabled((self.cur+i) % self.cnt ):
+                    if self.nxt==self.cur and not self._dis[(self.cur+i) % self.cnt ]:
                         self.nxt = (self.cur+i) % self.cnt
-                self.out = not self.disabled(self.cur)
-                self.outs[self.cur](self.out)
+                out = not self._dis[self.cur]
+                self.outs[self.cur](out)
             else:
+                i=0
                 for o in self.outs:
-                    o(False)
-                self.cur = self.nxt if self.best is None else self.best
+                    o(self._outs[i])
+                    i+=1
+                if not any(self._outs):
+                    self.cur = self.nxt if self.best is None else self.best
+        if len(self.sts)==0:
+            self._sts[0]=not any(self._outs)
+            for i in range(1,len(self._outs)):
+                self._sts[i]=True
                 
 class Retarder(SFC):
     """Замедлитель-объединитель нескольких затворов в один. 
@@ -403,7 +439,7 @@ class Retarder(SFC):
                     self._sts[self.cur] = self._sts[self.cur] and _()
             else:
                 for _ in self._outs:
-                    self._sts[self.cur] = self._sts[self.cur] and _
+                    self._sts[self.cur] = self._sts[self.cur] and not _
         else:
             for i in range(self.cnt):
                 if self.sts:
@@ -434,13 +470,16 @@ class Retarder(SFC):
                     j = i
                     self.cur = i
                     while self._outs[i]:
-                        till = self.m + self.dm
-                        yield from self.till( lambda: self.m<till and self._outs[i],max=self.maxT,n=[self.outs[j],self.__sts])
-                                                
                         j=(j+1) % self.cnt
                         while getattr(self,f'disable_{j+1}'):
                             j=(j+1) % self.cnt
                             yield
+                        if self.dm>0:
+                            till = self.m + self.dm
+                            yield from self.till( lambda: self.m<till and self._outs[i],max=self.maxT,n=[self.outs[j],self.__sts])
+                        else:
+                            yield from self.till(lambda: self._outs[i],n=[self.outs[j],self.__sts])
+                                                    
                         
                     for j in range(self.cnt):
                         self._lock[j]=False
