@@ -58,20 +58,21 @@ class Vibrator(SFC):
                 clk = clk or c()
         
 class UnloadHelper(SFC):
-    auto = POU.input(False,persistent=True)
+    auto = POU.var(False,persistent=True)
     q = POU.output(False)
     ignore_dm = POU.var(False,persistent=True)
-    def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None,id:str=None,parent:POU=None):
+    def __init__(self,auto=False,q:bool = False, dosator: Dosator=None, weight : Weight = None, point: int = None,dr: int = 500, id:str=None,parent:POU=None):
         super( ).__init__( id=id, parent=parent)
         self.dosator = dosator
         self.weight = weight
         self.auto = auto
         self.q = q
         self.point = point
+        self.dr = dr
 
     def __pulse(self):
         self.q = True
-        yield from self.pause(500)
+        yield from self.pause(self.dr)
         self.q = False
         yield from self.pause(3000)
 
