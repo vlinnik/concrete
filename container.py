@@ -3,7 +3,7 @@ from pyplc.pou import POU
 from pyplc.utils.trig import FTRIG,TRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter, RotaryFlowMeter,Delta
-from typing import Callable,Optional
+from typing import Callable,Optional,Tuple,List
 
 # @sfc(inputs=['m','sp','go','closed','lock'],outputs=['out'],vars=['min_ff','min_w','max_ff','max_w','busy','e','done','err'],hidden=['m','closed','lock'],persistent=['min_ff','max_ff','min_w','max_w','e'])
 class Container( SFC ):
@@ -487,3 +487,93 @@ class Retarder(SFC):
                     break
                 else:
                     self.__sts()
+
+class Assembly(SFC):
+    class State():
+        def __init__(self,ctl: OUT_BOOL,sts: IN_BOOL):
+            self.disable = False
+            self._ctl = False
+            if callable(sts):
+                self.sts = sts
+            else:
+                self.sts = self.__no_sts__
+            if callable(ctl):
+                self.ctl = ctl
+        def __no_sts__(self)->bool:
+            return True
+        
+        def write(self,value:bool)->bool:
+            if self.disable or not value:
+                self._ctl = False
+                self.ctl(False)
+                return False
+            self._ctl = True
+            self.ctl(True)
+            return True
+            
+        def __call__(self)->bool:
+            if self.disable:
+                return True
+            return self.sts( )
+        
+    def __init__(self,outs: Tuple[OUT_BOOL,...],sts: Tuple[IN_BOOL,...]=(), id: str = None, parent: POU = None) -> None:
+        super().__init__(id, parent)
+        self._outs = [Assembly.State(c,s) for c,s in zip(outs,sts)]
+        self._src: Container
+        self._out = False
+        self.subtasks = (self.background,)
+        
+    def link(self,src:Container):
+        self._src = src
+
+    def out(self,value: bool):
+        self._out = value
+            
+    def closed(self)->bool:
+        for c in self._outs:
+            if not c(): return False
+        else:
+            return True
+    
+    def background(self):
+        if self._src.lock:
+            for o in self._outs:
+                o.write(False)
+        pass
+                
+    def main(self):
+        if self._src is None:
+            return
+        
+        while not self._src.busy: yield
+
+        cur = 0
+        while self._src.busy:
+            yield 
+            if self._src.manual:
+                continue
+            if self._src.fast:
+                for o in self._outs:
+                    o.write(self._out)
+                continue
+            else:
+                if self._out:
+                    cur = (cur+1) % len(self._outs)
+                                    
+                while self._outs[cur].write(self._out):
+                    yield
+                    
+                for o in self._outs:
+                    o.write(False)
+    
+class Assembly2(Assembly):
+    disable_1 = POU.var(False,persistent=True)
+    disable_2 = POU.var(False,persistent=True)
+    
+    def __init__(self, outs: Tuple[OUT_BOOL,OUT_BOOL], sts: Tuple[IN_BOOL,...] = (), id: str = None, parent: POU = None) -> None:
+        super().__init__(outs, sts, id, parent)
+        
+    def background(self):
+        self._outs[0].disable = self.disable_1
+        self._outs[1].disable = self.disable_2
+        return super().background()

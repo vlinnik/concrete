@@ -130,3 +130,31 @@ class Gear(SFC):
                 self.auto( self.delay( pt = self.pt*1000) )
                 self.rotating = self.rot
             yield
+
+class DROT(SFC):
+    """Блок определения вращения конвейеров по дискретному входу. Реагирует на положительный фронт
+    """
+    clk = POU.input(False,hidden=True)
+    rotating = POU.var(False,hidden=True)
+    def __init__(self,clk: IN_BOOL,ms: int = 1000):
+        super().__init__()
+        self.clk = clk
+        self.rotating = False
+        self.ms = ms
+        
+    def main(self):
+        l_clk = self.clk
+        self.rotating = False
+        while l_clk==self.clk:
+            yield
+            
+        while True:
+            for _ in self.pause(self.ms):
+                l_clk = self.clk
+                yield
+                if self.clk and not l_clk:
+                    self.rotating = True
+                    break   #выход из for
+            else:
+                self.rotating = False
+                break   #выход из while

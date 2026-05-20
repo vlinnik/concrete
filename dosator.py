@@ -15,7 +15,7 @@ class ManualDosator(SFC):
     helper = POU.output(False)
     unloadT = POU.var(0,persistent=True)
     
-    def __init__(self,level:bool = False, closed:bool=True,out:bool=False, lock:bool=False,full: bool = False, helper: bool = False, dosator:'Dosator' = None, containers: list['Container']=(), id:str=None,parent:POU=None) -> None:
+    def __init__(self,level:bool = False, closed:bool=True,out:bool=False, lock:bool=False,full: bool = False, helper: bool = False, dosator:'Dosator' = None, containers: list['Container']=(), mode: int=0, id:str=None,parent:POU=None) -> None:
         super().__init__( id,parent )
         self.helper_t = 5
         self.closed = closed
@@ -40,10 +40,10 @@ class ManualDosator(SFC):
         self.e = 0.0
         
         if dosator:
-            self.join('loaded',lambda: dosator.unloaded )
+            self.links(loaded=lambda: dosator.unloaded )
             self.subtasks+= (self.__dosator, )
             
-            self.expenses=tuple(MoveFlow(flow_in=c.q, out=self._unsealed) for c in dosator.containers )
+            self.expenses=tuple(MoveFlow(flow_in=c.q, out=self._unsealed,mode=mode) for c in dosator.containers )
         else:
             self.expenses=( )
             

@@ -2,6 +2,7 @@ from pyplc.pou import POU
 from pyplc.utils.trig import TRIG
 from pyplc.utils.misc import TON,BLINK
 from concrete.weight import Weight
+import gc
 
 class Factory(POU):
     CODES = []
@@ -15,6 +16,7 @@ class Factory(POU):
     heartbeat= POU.output(False)
     over = POU.var(False)
     scanTime = POU.var(0)
+    mem = POU.var(0)
 
     activated = POU.var(False,persistent=True)
     moto = POU.var(int(0),persistent=True)
@@ -83,3 +85,9 @@ class Factory(POU):
                 self.powerfail = False
                 self.powerack = False
                 self.powered += 1
+                
+            try:
+                self.mem = gc.mem_free()>>15
+            except:
+                self.mem = 100
+                pass

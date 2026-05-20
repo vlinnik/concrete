@@ -66,14 +66,15 @@ class MoveFlow(POU):
     """ 
     out = POU.input(False)   
     e = POU.output(0.0)
-    def __init__(self,flow_in: Flow,out: bool = False, id: str=None, parent:POU=None):
+    def __init__(self,flow_in: Flow,out: bool = False, mode: int=0, id: str=None, parent:POU=None):
         super().__init__( id,parent)
-        self.out = out
+        self.out = out if mode==0 else lambda: not out()
         self.e = 0.0
         self.q = Flow( )
         self.flow_in = flow_in
-        self.f_in = RTRIG( clk =lambda: self.flow_in.clk )
-        self.f_out = FTRIG( clk = lambda: self.out )
+        self.f_in = RTRIG( clk =lambda: self.flow_in.clk ) 
+        self.f_out = FTRIG( clk = lambda: self.out ) if mode==0 else FTRIG( clk = lambda: not self.out )
+            
 
     def __call__(self, out = None):
         with self:
@@ -98,6 +99,9 @@ class Expense():
 
     def __str__(self):
         return f'Expense=<in={self._in},out={self._out},e={self.e}>'
+
+    def __repr__(self):
+        return f'Expense(in={self._in},out={self._out},e={self.e})'
 
     def __call__(self, out:bool = None):
         out = out if out is not None else self.out()
