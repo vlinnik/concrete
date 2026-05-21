@@ -5,7 +5,7 @@ from pyplc.utils.trig import FTRIG
 class Weight(STL):
     g_Load = 0.0
     raw = POU.input( 0 , hidden=True)
-    m = POU.output(0.0)
+    m = POU.output(0.0,hidden=False)
     k = POU.var(1.0,persistent=True,hidden=True)
     a = POU.var(0.0,persistent=True,hidden=True)
     mA= POU.var(4.0)
@@ -45,7 +45,7 @@ class Weight(STL):
                 self.a = m1 - (mA1)*self.k
                 self.points.clear()
 
-    def get_m(self):
+    def get_m(self)->float:
         return self._m
     
     def __call__(self,raw:int=None):

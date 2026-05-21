@@ -134,8 +134,8 @@ class Gear(SFC):
 class DROT(SFC):
     """Блок определения вращения конвейеров по дискретному входу. Реагирует на положительный фронт
     """
-    clk = POU.input(False,hidden=True)
-    rotating = POU.var(False,hidden=True)
+    clk = POU.input(False)
+    rotating = POU.var(False)
     def __init__(self,clk: IN_BOOL,ms: int = 1000):
         super().__init__()
         self.clk = clk

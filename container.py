@@ -1,5 +1,5 @@
 from pyplc.sfc import *
-from pyplc.pou import POU
+from pyplc.pou import POU,IN_FLOAT
 from pyplc.utils.trig import FTRIG,TRIG
 from pyplc.utils.misc import TOF
 from .counting import Counter, RotaryFlowMeter,Delta
@@ -9,11 +9,11 @@ from typing import Callable,Optional,Tuple,List
 class Container( SFC ):
     """Расходный бункер"""
     m = POU.input(0.0,hidden=True)
-    sp = POU.input(0.0)
+    sp = POU.input(0.0,hidden=False)
     go = POU.input(False)
     closed = POU.input(False,hidden=True)
     lock = POU.input(False,hidden=True)
-    out = POU.output(False)
+    out = POU.output(False,hidden=False)
     min_ff = POU.var(0.0,persistent=True)
     max_ff = POU.var(0.0,persistent=True)
     min_w = POU.var(100,persistent=True)

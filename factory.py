@@ -22,7 +22,7 @@ class Factory(POU):
     moto = POU.var(int(0),persistent=True)
     used = POU.var(int(0),persistent=True)
     powered = POU.var(int(0),persistent=True)
-    load = POU.output(float(0.0))               #калибровочный груз
+    load = POU.var(float(0.0))               #калибровочный груз
 
     def __init__(self,id:str = None,parent:POU=None) -> None:
         super().__init__( id,parent )
@@ -45,6 +45,7 @@ class Factory(POU):
         self.__last_call = POU.NOW_MS
         self.on_mode = [lambda *args: self.log('ручной режим = ',*args)]
         self.on_emergency = [lambda *args: self.log('аварийный режим = ',*args)]
+        self.__last_heartbeat = False
         self.bind(Factory.load,self._load_changed)
     def _load_changed(self,load: float):
         Weight.g_Load = load
@@ -85,9 +86,11 @@ class Factory(POU):
                 self.powerfail = False
                 self.powerack = False
                 self.powered += 1
-                
-            try:
-                self.mem = gc.mem_free()>>15
-            except:
-                self.mem = 100
-                pass
+            
+            if self.heartbeat and not self.__last_heartbeat:
+                try:
+                    self.mem = gc.mem_free()>>15
+                except:
+                    self.mem = 100
+                    pass
+            self.__last_heartbeat = self.heartbeat

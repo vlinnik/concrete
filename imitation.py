@@ -1,7 +1,10 @@
 from pyplc.stl import *
-from pyplc.pou import POU
+from pyplc.pou import POU,IN_BOOL
 from pyplc.channel import Channel
 from pyplc.utils.misc import TOF
+from typing import Optional
+
+CHANNEL = Optional[Channel]
 
 class iGATE(STL):
     open = POU.input(False,hidden=True)
@@ -9,7 +12,7 @@ class iGATE(STL):
     opened=POU.output(False,hidden=True)
     middle=POU.output(False,hidden=True)
     closed=POU.output(False,hidden=True)
-    def __init__(self,open=False,close=False,opened:bool=False,closed:bool=True,middle:bool=None,simple=False):
+    def __init__(self,open:Channel,close:CHANNEL=None,opened:CHANNEL=None,closed:CHANNEL=None,middle:CHANNEL=None,simple=False):
         super( ).__init__( )
         self.pos = 0
         self.open = open
@@ -57,7 +60,7 @@ class iWEIGHT(STL):
     unloading =POU.input(False,hidden=True)
     q = POU.output(0,hidden=True)
     
-    def __init__(self,speed=10,loading = False,unloading=False,q: int = None):
+    def __init__(self,loading: IN_BOOL,unloading:IN_BOOL,q: Channel,speed:int=100):
         super().__init__( )
         self.q = q.force if q is not None else None
         self.loading = loading
@@ -77,7 +80,7 @@ class iVALVE(STL):
     open = POU.input(False,hidden=True)
     closed=POU.output(False,hidden=True)
     opened=POU.output(False,hidden=True)
-    def __init__(self,open=False,closed:bool=None,opened:bool=None):
+    def __init__(self,open:Channel,closed:CHANNEL=None,opened:CHANNEL=None):
         super().__init__( )
         self.closed = closed.force if closed is not None else None
         self.opened = opened.force if opened is not None else None

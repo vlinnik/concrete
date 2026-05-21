@@ -13,8 +13,8 @@ class Mixer(SFC):
         loaded ( bool ): сигнал "смеситель загружен"
         load ( bool ): сигнал "можно загружать"
     """
-    go = POU.input(False)
-    count = POU.input( 0 )
+    go = POU.input(False,hidden=False)
+    count = POU.input( 0 ,hidden=False)
     ready = POU.var(False)
     clock = POU.var( 0 )
     state = POU.var( 'ПОДКЛЮЧЕНИЕ' )
