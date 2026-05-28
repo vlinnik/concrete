@@ -14,7 +14,7 @@ class MSGate(SFC):
     forbid = POU.input(False,hidden=True)
     closed = POU.input(False,hidden=True)
     opened = POU.input(False,hidden=True)
-    lock = POU.input(False)
+    lock = POU.input(False,hidden=False)
     open = POU.output(False)
     manual = POU.var(False)
     unloading = POU.var(False)
