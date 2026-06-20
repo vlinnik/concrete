@@ -218,7 +218,7 @@ class MPGate(MSGate):
             pt (int, optional): время выгрузки в сек. Defaults to self.pt
             move_t (int, optional): время полного открытия в сек. Defaults to self.move_t
         """
-        if self.middle_t==0 or self.dr==0:
+        if self.middle_t==0:
             yield from super()._unload(pt,move_t)
             return
         
