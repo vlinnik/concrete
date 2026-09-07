@@ -489,6 +489,17 @@ class Retarder(SFC):
                     self.__sts()
 
 class Assembly(SFC):
+    en = POU.var(True,persistent=True)
+    """
+    сборка затвор+состояние
+    
+    если несколько затворов относятся к одному бункеру, то в грубом режиме они открываются вместе,
+    в точном поочереди. 
+    
+    Пример:
+    assembly_1 = Assembly(outs=(hw.FILLER_OPEN_1,hw.FILLER_OPEN_2),sts=(hw.FILLER_CLOSED_1,hw.FILLER_CLOSED_2))
+    filler_1 = Container(out=assembly_1.out,closed = assembly_1.closed)
+    """
     class State():
         def __init__(self,ctl: OUT_BOOL,sts: IN_BOOL):
             self.disable = False
@@ -538,7 +549,7 @@ class Assembly(SFC):
     def background(self):
         if self._src.lock:
             for o in self._outs:
-                o.write(False)
+                if not o.disable: o.write(False)
         pass
                 
     def main(self):
@@ -551,12 +562,15 @@ class Assembly(SFC):
         while self._src.busy:
             yield 
             if self._src.manual:
+                for o in self._outs:
+                    o.write(self._out)
+                yield from self.till(lambda: self._src.manual and self._src.busy)
                 continue
-            if self._src.fast:
+            if self._src.fast and self.en:
                 for o in self._outs:
                     o.write(self._out)
                 continue
-            else:
+            elif self.en:
                 if self._out:
                     cur = (cur+1) % len(self._outs)
                                     
@@ -565,8 +579,19 @@ class Assembly(SFC):
                     
                 for o in self._outs:
                     o.write(False)
+            else:
+                for o in self._outs:
+                    if not o.disable:
+                        o.write(self._out)
+                        break
+                    else:
+                        o.write(False)
     
 class Assembly2(Assembly):
+    """
+    Два затвора с возможностью отключения
+    Применять как Assembly.
+    """
     disable_1 = POU.var(False,persistent=True)
     disable_2 = POU.var(False,persistent=True)
     
@@ -576,4 +601,22 @@ class Assembly2(Assembly):
     def background(self):
         self._outs[0].disable = self.disable_1
         self._outs[1].disable = self.disable_2
+        return super().background()
+
+class Assembly3(Assembly):
+    """
+    Два затвора с возможностью отключения
+    Применять как Assembly.
+    """
+    disable_1 = POU.var(False,persistent=True)
+    disable_2 = POU.var(False,persistent=True)
+    disable_3 = POU.var(False,persistent=True)
+    
+    def __init__(self, outs: Tuple[OUT_BOOL,OUT_BOOL,OUT_BOOL], sts: Tuple[IN_BOOL,...] = (), id: str = None, parent: POU = None) -> None:
+        super().__init__(outs, sts, id, parent)
+        
+    def background(self):
+        self._outs[0].disable = self.disable_1
+        self._outs[1].disable = self.disable_2
+        self._outs[2].disable = self.disable_3
         return super().background()
