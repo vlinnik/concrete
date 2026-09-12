@@ -541,13 +541,16 @@ class Assembly(SFC):
         self._out = value
             
     def closed(self)->bool:
-        for c in self._outs:
-            if not c(): return False
+        if self.en:
+            for c in self._outs:
+                if not c(): return False
+            else:
+                return True
         else:
-            return True
+            return self._outs[0]()  #по первому затвору
     
     def background(self):
-        if self._src.lock:
+        if self._src.lock and self.en:
             for o in self._outs:
                 if not o.disable: o.write(False)
         pass
