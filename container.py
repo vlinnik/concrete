@@ -536,9 +536,57 @@ class Assembly(SFC):
         
     def link(self,src:Container):
         self._src = src
+        src.links(out = self.out)
 
     def out(self,value: bool):
         self._out = value
+        if not self.en:
+            self._outs[0].write(value)
+    
+    def allowed(self,index:int)->Callable[[],bool]:
+        """Для использования в Container::lock, зависит от Assembly::en  
+
+        Args:
+            index (int): номер затвора. 0 - основной, 1..n - вспомогательные
+
+        Returns:
+            Callable[[],bool]: Можно ли открыть затвор (для неосновных затворов в условии блокировки)
+            
+        Example:
+        ```
+        filler_1 = Container(out=hw.FILLER_OPEN_1,closed = assembly_1.state(0),lock = assembly_1.allowed(0))
+        filler_2 = Container(out=hw.FILLER_OPEN_2,closed = assembly_1.state(1),lock = assembly_1.allowed(1))
+        ```
+        """
+        except_index = [self._outs[i] for i in range(len(self._outs)) if i!=index]
+        def __allowed__()->bool:
+            if not self.en:
+                for c in except_index:
+                    if not c(): 
+                        if index==0: logger.debug(f'not allowed #0')
+                        return False
+                return True
+            else:
+                return True
+        return __allowed__
+    
+    def state(self,index:int)->Callable[[],bool]:
+        """Вернуть функцию получения состояния затвора по индексу 
+        
+        Пример: см Assembly::allowed
+
+        Args:
+            index (int): номер затвора. 0 - основной, 1..n - вспомогательные
+
+        Returns:
+            Callable[[],bool]: Для неосновного затвора закрыт если активирован режим набора всеми сразу
+        """
+        if index==0: return self.closed
+        def __state__()->bool:
+            if self.en:
+                return True
+            return self._outs[index].sts()
+        return __state__
             
     def closed(self)->bool:
         if self.en:
@@ -550,9 +598,6 @@ class Assembly(SFC):
             return self._outs[0]()  #по первому затвору
     
     def background(self):
-        if self._src.lock and self.en:
-            for o in self._outs:
-                if not o.disable: o.write(False)
         pass
                 
     def main(self):
@@ -566,7 +611,7 @@ class Assembly(SFC):
             yield 
             if self._src.manual:
                 for o in self._outs:
-                    o.write(self._out)
+                    o.write(False)
                 yield from self.till(lambda: self._src.manual and self._src.busy)
                 continue
             if self._src.fast and self.en:

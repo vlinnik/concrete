@@ -235,7 +235,10 @@ class MPGate(MSGate):
             else:            
                 yield from self.pause( self.dr, step='step-by-step.move' )
             self._auto(MPGate.CMD_FREE)   #stop opening
-            yield from self.pause( self.middle_t*1000, step='step-by-step.stay' )
+            sec = 0
+            while sec<self.middle_t:
+                yield from self.pause( 1000, step='step-by-step.stay' )
+                sec+=1                
             self._auto(MPGate.CMD_OPEN)   #open more
             count+=1
             if self.opened or count>=self.count: self.sfc_continue = True
